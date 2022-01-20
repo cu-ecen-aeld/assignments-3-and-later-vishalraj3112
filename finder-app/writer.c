@@ -53,7 +53,7 @@ int main(int argc, char const *argv[])
 		syslog(LOG_ERR,"Error: File could not be written");
 		exit(1);
 	}else if(nr != strlen(writestr)){
-		printf("Error: File partially written!");
+		printf("Error: File partially written! ");
 		exit(1);
 	}
 	syslog(LOG_DEBUG,"Writing %s to %s",writestr,writefile);
