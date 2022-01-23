@@ -17,11 +17,11 @@
 void write_file(char const *writefile, char const *writestr);
 
 /***********************************************************************************************
-* Name			   : main
-* Description 	   : used to call other sub-functions and read command line arguments.
-* Parameters 	   : argc-no of command line arguments, argv-pointer to the command line 
-* 					 arguments.
-* RETURN 		   : success exit code
+* Name			: main
+* Description	: used to call other sub-functions and read command line arguments.
+* Parameters	: argc-no of command line arguments, argv-pointer to the command line 
+* 					arguments.
+* RETURN		: success exit code
 ***********************************************************************************************/
 int main(int argc, char const *argv[])
 {
@@ -43,12 +43,12 @@ int main(int argc, char const *argv[])
 }
 
 /***********************************************************************************************
-* Name			   : write_file
-* Description 	   : used to create and write to file, handle error conditions and also perform
-* 					 syslog functions.
-* Parameters 	   : argc-no of command line arguments, argv-pointer to the command line 
-* 					 arguments.
-* RETURN 		   : success exit code
+* Name			: write_file
+* Description	: used to create and write to file, handle error conditions and also perform
+* 				  syslog functions.
+* Parameters	: argc-no of command line arguments, argv-pointer to the command line 
+*				  arguments.
+* RETURN		: success exit code
 ***********************************************************************************************/
 void write_file(char const *writefile, char const *writestr)
 {
