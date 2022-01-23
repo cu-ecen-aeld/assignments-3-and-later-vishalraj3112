@@ -31,8 +31,12 @@ int main(int argc, char const *argv[])
 		*(cmd_input+i) = argv[i];
 	}
 
+	//open the log file
+	openlog("writer-a2",LOG_PID,LOG_USER);
+
 	if(argc < 3){
 		printf("Error: Wrong arguments!\n");
+		syslog(LOG_ERR,"Error: Wrong arguments!");
 		exit(1);
 	}
 
@@ -54,25 +58,23 @@ void write_file(char const *writefile, char const *writestr)
 {
 	int fd,nr;
 
-	//open the log file
-	openlog("writer-a2",LOG_PID,LOG_USER);
-
 	//Create file
 	fd = creat(writefile, 0644);
 	if(fd == -1){
-		printf("Error: File could not be created!");
-		syslog(LOG_ERR,"Error: File could not be created");
+		printf("Error: File could not be created!\n");
+		syslog(LOG_ERR,"Error: File could not be created!");
 		exit(1);
 	}
 
 	//Write file
 	nr = write(fd,writestr,strlen(writestr));
 	if(nr == -1){
-		printf("Error: File could not be written!");
-		syslog(LOG_ERR,"Error: File could not be written");
+		printf("Error: File could not be written!\n");
+		syslog(LOG_ERR,"Error: File could not be written!");
 		exit(1);
 	}else if(nr != strlen(writestr)){
-		printf("Error: File partially written!");
+		printf("Error: File partially written!\n");
+		syslog(LOG_ERR,"Error: File partially written!");
 		exit(1);
 	}
 	syslog(LOG_DEBUG,"Writing %s to %s",writestr,writefile);
