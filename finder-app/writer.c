@@ -1,3 +1,11 @@
+/***********************************************************************************************************************
+* File Name    : writer.c
+* Project      : AESD Assignment 2
+* Version      : 1.0
+* Description  : Contains all the function implementation code for writer application.
+* Author       : Vishal Raj
+* Creation Date: 1.19.22
+***********************************************************************************************************************/
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
@@ -5,38 +13,49 @@
 #include <string.h>
 #include <syslog.h>
 
+//declaring prototype
+void write_file(char const *writefile, char const *writestr);
+
+/***********************************************************************************************
+* Name			   : main
+* Description 	   : used to call other sub-functions and read command line arguments.
+* Parameters 	   : argc-no of command line arguments, argv-pointer to the command line 
+* 					 arguments.
+* RETURN 		   : success exit code
+***********************************************************************************************/
 int main(int argc, char const *argv[])
 {
-	int fd,nr;
-
 	char const *cmd_input[argc];
-	char const *writefile = NULL;
-	char const *writestr = NULL;
 
 	for(int i = 0; i < argc; i++){
 		*(cmd_input+i) = argv[i];
 	}
-
-	//open the log file
-	openlog("writer-a2",LOG_PID,LOG_USER);
-
-	//Test for seeing the arguments
-	// for(int i = 0; i < argc; i++){
-	// 	printf("%s\n",*(cmd_input+i));
-	// }
-	//Remove in final code
 
 	if(argc < 3){
 		printf("Error: Wrong arguments!\n");
 		exit(1);
 	}
 
-	writefile = *(cmd_input+1);
-	writestr = *(cmd_input+2);
+	write_file(*(cmd_input+1),*(cmd_input+2));
 
-	// printf("Writefile:%s\n",writefile);
-	// printf("writestr:%s\n",writestr);
-	// printf("size of writestr:%ld\n",strlen(writestr));
+
+	return 0;
+}
+
+/***********************************************************************************************
+* Name			   : write_file
+* Description 	   : used to create and write to file, handle error conditions and also perform
+* 					 syslog functions.
+* Parameters 	   : argc-no of command line arguments, argv-pointer to the command line 
+* 					 arguments.
+* RETURN 		   : success exit code
+***********************************************************************************************/
+void write_file(char const *writefile, char const *writestr)
+{
+	int fd,nr;
+
+	//open the log file
+	openlog("writer-a2",LOG_PID,LOG_USER);
 
 	//Create file
 	fd = creat(writefile, 0644);
@@ -59,5 +78,6 @@ int main(int argc, char const *argv[])
 	syslog(LOG_DEBUG,"Writing %s to %s",writestr,writefile);
 	closelog();
 
-	return 0;
 }
+
+//[EOF]
