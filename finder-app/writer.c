@@ -56,7 +56,7 @@ int main(int argc, char const *argv[])
 ***********************************************************************************************/
 void write_file(char const *writefile, char const *writestr)
 {
-	int fd,nr;
+	int fd,nr,cl;
 
 	//Create file
 	fd = creat(writefile, 0644);
@@ -78,6 +78,14 @@ void write_file(char const *writefile, char const *writestr)
 		exit(1);
 	}
 	syslog(LOG_DEBUG,"Writing %s to %s",writestr,writefile);
+
+	cl = close(fd);
+	if(cl == -1){
+		printf("Error: File could not be Closed!\n");
+		syslog(LOG_ERR,"Error: File could not be Closed!");
+		exit(1);
+	}
+
 	closelog();
 
 }
