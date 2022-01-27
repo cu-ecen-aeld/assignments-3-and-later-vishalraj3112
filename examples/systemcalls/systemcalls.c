@@ -24,8 +24,10 @@ bool do_system(const char *cmd)
 
     ret = system(cmd);
 
-    if(ret == -1)
+    if(ret == -1){
+        perror("system error");
         return false;
+    }
 
     return true;
 }
@@ -78,18 +80,15 @@ bool do_exec(int count, ...)
         perror("fork error");
         return false;
     }
-    else if(pid == 0){
+    else if(pid == 0){//Child process
         
         rt = execv(command[0],command);
         if(rt == -1){
             perror("execv error");
-            printf("Here !\n");
-            exit(-1);
-            return false;
-            printf("Here !\n");
+            exit(-1); //same as false
         }
 
-    }else{
+    }else{ //Parent process
 
         if(waitpid(pid,&status,0) == -1){
             perror("wait error");
@@ -149,7 +148,8 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
     if(pid == -1){
         perror("fork error");
         return false;
-    }else if(pid == 0){
+    }else if(pid == 0){ //Child process
+
         if(dup2(fd,1) < 0){
             perror("dup2 error");
             return false;
@@ -160,7 +160,7 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
         rt = execv(command[0],command);
         if(rt == -1){
             perror("execv error");
-            return false;
+            exit(-1);
         }
     }
     else{
