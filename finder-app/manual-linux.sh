@@ -27,8 +27,8 @@ fi
 mkdir -p ${OUTDIR}
 
 #---Adding my part here
-if ! [ -d "$OUTDIR" ]; then #directory could not be created, return error
-	echo " $OUTDIR Director could not be created"
+if ! [ -d "${OUTDIR}" ]; then #directory could not be created, return error
+	echo "Error: $OUTDIR Director could not be created"
 	exit 1
 fi
 #---Adding my part here	
@@ -46,20 +46,20 @@ if [ ! -e ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ]; then
 
     # TODO: Add your kernel build steps here
     # Step 1: Clean tree
-    make ARCH=arm64 CROSS_COMPILE=aarch64-none-linux-gnu- mrproper
+    make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} mrproper
     # Step 2: Configure 
-    make ARCH=arm64 CROSS_COMPILE=aarch64-none-linux-gnu- defconfig
+    make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} defconfig
     # Step 3: Build kernal image
-    make -j4 ARCH=arm64 CROSS_COMPILE=aarch64-none-linux-gnu- all
+    make -j4 ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} all
     # Step 4: Build modules
-    make ARCH=arm64 CROSS_COMPILE= aarch64-none-linux-gnu- modules
+    make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} modules
     # Step 5: Build device tree
-    make ARCH=arm64 CROSS_COMPILE= aarch64-none-linux-gnu - dtbs
-fi 
+    make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} dtbs
+fi
 
 echo "Adding the Image in outdir"
 #TODO: Copy the Image in outdir
-cp ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ${OUTDIR}
+cp ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ${OUTDIR}/
 
 echo "Creating the staging directory for the root filesystem"
 cd "$OUTDIR"
@@ -72,13 +72,16 @@ fi
 # TODO: Create necessary base directories
 
 #---Adding my part here
+mkdir ${OUTDIR}/rootfs
+
 if ! [ -d "${OUTDIR}/rootfs" ]
 then
-	mkdir ${OUTDIR}/rootfs
+	echo "Error: ${OUTDIR}/rootfs could not be created"
+	exit 1
 fi
 
 cd ${OUTDIR}/rootfs
-mkdir bin dev etc home lib proc sbin sys tmp usr var
+mkdir bin dev etc home lib proc sbin sys tmp usr var lib64
 mkdir usr/bin usr/lib usr/sbin
 mkdir -p var/log
 #cd ${OUTDIR}/rootfs
@@ -103,45 +106,51 @@ fi
 make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE}
 make CONFIG_PREFIX=${OUTDIR}/rootfs ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} install
 
+cd ${OUTDIR}/rootfs # My part
+ 
 echo "Library dependencies"
 ${CROSS_COMPILE}readelf -a bin/busybox | grep "program interpreter"
 ${CROSS_COMPILE}readelf -a bin/busybox | grep "Shared library"
 
 # TODO: Add library dependencies to rootfs
-cd ${OUTDIR}/rootfs
+#cd ${OUTDIR}/rootfs
 SYSROOT=$(${CROSS_COMPILE}gcc -print-sysroot)
-cp -a $SYSROOT/lib/ld-linux-aarch64.so.1 lib
-cp -a $SYSROOT/lib64/libresolv.so.2 lib64
-cp -a $SYSROOT/lib64/libm.so.6 lib64
-cp -a $SYSROOT/lib64/libc.so.6 lib64
+cp $SYSROOT/lib/ld-linux-aarch64.so.1 lib
+cp $SYSROOT/lib64/libresolv.so.2 lib64
+cp $SYSROOT/lib64/libm.so.6 lib64
+cp $SYSROOT/lib64/libc.so.6 lib64
 
 
-
+echo "Starting make devices step"
 # TODO: Make device nodes
 sudo mknod -m 666 dev/null c 1 3
 sudo mknod -m 600 dev/console c 5 1
 
+echo "Starting writer app build step"
 # TODO: Clean and build the writer utility
 cd ${FINDER_APP}
 make clean
 make CROSS_COMPILE=${CROSS_COMPILE} all
 
+echo "Starting files copy step"
 # TODO: Copy the finder related scripts and executables to the /home directory
 # on the target rootfs
-mkdir ${OUTDIR}/rootfs/home
+#mkdir ${OUTDIR}/rootfs/home
 cp  ${FINDER_APP}/writer ${OUTDIR}/rootfs/home
 cp  ${FINDER_APP}/finder.sh ${OUTDIR}/rootfs/home
-cp  $(PROJECT_PATH}/conf/username.txt ${OUTDIR}/rootfs/home
+cp -r ${FINDER_APP}/conf/ ${OUTDIR}/rootfs/home
 cp  ${FINDER_APP}/finder-test.sh ${OUTDIR}/rootfs/home
+cp -f ${FINDER_APP}/autorun-qemu.sh ${OUTDIR}/rootfs
 cp -f ${FINDER_APP}/autorun-qemu.sh ${OUTDIR}/rootfs/home
 
-
+echo "Starting chown root directory step"
 # TODO: Chown the root directory
 cd ${OUTDIR}/rootfs
 sudo chown -R root:root *
 
+echo "Starting create initramfs.cpio.gz step"
 # TODO: Create initramfs.cpio.gz
-cd "${OUTDIR}/rootfs"
+cd ${OUTDIR}/rootfs
 find . | cpio -H newc -ov --owner root:root > ../initramfs.cpio
 cd ..
 gzip -f initramfs.cpio
