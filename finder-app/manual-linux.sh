@@ -6,13 +6,15 @@ set -e
 set -u
 
 OUTDIR=/tmp/aeld
-#KERNEL_REPO=git://git.kernel.org/pub/scm/linux/kernel/git/stable/linux-stable.git
-KERNEL_REPO=https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git #---Adding my part here
+KERNEL_REPO=git://git.kernel.org/pub/scm/linux/kernel/git/stable/linux-stable.git
+#KERNEL_REPO=https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git #---Adding my part here
 KERNEL_VERSION=v5.1.10
 BUSYBOX_VERSION=1_33_1
 FINDER_APP_DIR=$(realpath $(dirname $0))
 ARCH=arm64
 CROSS_COMPILE=aarch64-none-linux-gnu-
+FINDER_APP=/home/vishalraj//AESD/Assignment-1,2,3/assignment-1-vishalraj3112/finder-app
+PROJECT_PATH=/AESD/Assignment-1,2,3/assignment-1-vishalraj3112
 
 if [ $# -lt 1 ]
 then
@@ -56,6 +58,8 @@ if [ ! -e ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ]; then
 fi 
 
 echo "Adding the Image in outdir"
+#TODO: Copy the Image in outdir
+cp ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ${OUTDIR}
 
 echo "Creating the staging directory for the root filesystem"
 cd "$OUTDIR"
@@ -77,7 +81,7 @@ cd ${OUTDIR}/rootfs
 mkdir bin dev etc home lib proc sbin sys tmp usr var
 mkdir usr/bin usr/lib usr/sbin
 mkdir -p var/log
-cd ${OUTDIR}/rootfs
+#cd ${OUTDIR}/rootfs
 #sudo chown -R root:root *
 
 #---Adding my part here
@@ -89,13 +93,13 @@ git clone git://busybox.net/busybox.git
     cd busybox
     git checkout ${BUSYBOX_VERSION}
     # TODO:  Configure busybox
+    make distclean
+    make defconfig
 else
     cd busybox
 fi
 
 # TODO: Make and insatll busybox
-make distclean
-make defconfig
 make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE}
 make CONFIG_PREFIX=${OUTDIR}/rootfs ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} install
 
@@ -105,12 +109,12 @@ ${CROSS_COMPILE}readelf -a bin/busybox | grep "Shared library"
 
 # TODO: Add library dependencies to rootfs
 cd ${OUTDIR}/rootfs
-cp -a $SYSROOT/lib/ld-linux-armhf.so.3 lib
-cp -a $SYSROOT/lib/ld-2.19.so lib
-cp -a $SYSROOT/lib/libc.so.6 lib
-cp -a $SYSROOT/lib/libc-2.19.so lib
-cp -a $SYSROOT/lib/libm.so.6 lib
-cp -a $SYSROOT/lib/libm.so.6 lib
+SYSROOT=$(${CROSS_COMPILE}gcc -print-sysroot)
+cp -a $SYSROOT/lib/ld-linux-aarch64.so.1 lib
+cp -a $SYSROOT/lib64/libresolv.so.2 lib64
+cp -a $SYSROOT/lib64/libm.so.6 lib64
+cp -a $SYSROOT/lib64/libc.so.6 lib64
+
 
 
 # TODO: Make device nodes
@@ -118,16 +122,27 @@ sudo mknod -m 666 dev/null c 1 3
 sudo mknod -m 600 dev/console c 5 1
 
 # TODO: Clean and build the writer utility
+cd ${FINDER_APP}
 make clean
-make CROSS_COMPILE-aarch64-none-linux-gnu- all
+make CROSS_COMPILE=${CROSS_COMPILE} all
 
 # TODO: Copy the finder related scripts and executables to the /home directory
 # on the target rootfs
+mkdir ${OUTDIR}/rootfs/home
+cp  ${FINDER_APP}/writer ${OUTDIR}/rootfs/home
+cp  ${FINDER_APP}/finder.sh ${OUTDIR}/rootfs/home
+cp  $(PROJECT_PATH}/conf/username.txt ${OUTDIR}/rootfs/home
+cp  ${FINDER_APP}/finder-test.sh ${OUTDIR}/rootfs/home
+cp -f ${FINDER_APP}/autorun-qemu.sh ${OUTDIR}/rootfs/home
+
 
 # TODO: Chown the root directory
+cd ${OUTDIR}/rootfs
 sudo chown -R root:root *
 
 # TODO: Create initramfs.cpio.gz
 cd "${OUTDIR}/rootfs"
 find . | cpio -H newc -ov --owner root:root > ../initramfs.cpio
+cd ..
+gzip -f initramfs.cpio
 
