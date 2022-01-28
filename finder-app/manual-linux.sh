@@ -13,7 +13,6 @@ BUSYBOX_VERSION=1_33_1
 FINDER_APP_DIR=$(realpath $(dirname $0))
 ARCH=arm64
 CROSS_COMPILE=aarch64-none-linux-gnu-
-FINDER_APP=/home/vishalraj//AESD/Assignment-1,2,3/assignment-1-vishalraj3112/finder-app
 PROJECT_PATH=/AESD/Assignment-1,2,3/assignment-1-vishalraj3112
 
 if [ $# -lt 1 ]
@@ -128,7 +127,7 @@ sudo mknod -m 600 dev/console c 5 1
 
 echo "Starting writer app build step"
 # TODO: Clean and build the writer utility
-cd ${FINDER_APP}
+cd ${FINDER_APP_DIR}
 make clean
 make CROSS_COMPILE=${CROSS_COMPILE} all
 
@@ -136,12 +135,12 @@ echo "Starting files copy step"
 # TODO: Copy the finder related scripts and executables to the /home directory
 # on the target rootfs
 #mkdir ${OUTDIR}/rootfs/home
-cp  ${FINDER_APP}/writer ${OUTDIR}/rootfs/home
-cp  ${FINDER_APP}/finder.sh ${OUTDIR}/rootfs/home
-cp -r ${FINDER_APP}/conf/ ${OUTDIR}/rootfs/home
-cp  ${FINDER_APP}/finder-test.sh ${OUTDIR}/rootfs/home
-cp -f ${FINDER_APP}/autorun-qemu.sh ${OUTDIR}/rootfs
-cp -f ${FINDER_APP}/autorun-qemu.sh ${OUTDIR}/rootfs/home
+cp  ${FINDER_APP_DIR}/writer ${OUTDIR}/rootfs/home
+cp  ${FINDER_APP_DIR}/finder.sh ${OUTDIR}/rootfs/home
+cp -r ${FINDER_APP_DIR}/conf/ ${OUTDIR}/rootfs/home
+cp  ${FINDER_APP_DIR}/finder-test.sh ${OUTDIR}/rootfs/home
+cp -f ${FINDER_APP_DIR}/autorun-qemu.sh ${OUTDIR}/rootfs
+cp -f ${FINDER_APP_DIR}/autorun-qemu.sh ${OUTDIR}/rootfs/home
 
 echo "Starting chown root directory step"
 # TODO: Chown the root directory
