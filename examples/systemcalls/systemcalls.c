@@ -1,3 +1,11 @@
+/***********************************************************************************************************************
+* File Name    : systemcalls.c
+* Project      : AESD Assignment 3 Part 1
+* Version      : 1.0
+* Description  : Contains all the function implementation code for system call application.
+* Author       : Vishal Raj
+* Creation Date: 1.26.22
+***********************************************************************************************************************/
 #include "systemcalls.h"
 #include <stdlib.h>
 #include <unistd.h>
@@ -74,8 +82,10 @@ bool do_exec(int count, ...)
     pid_t pid;
     int rt;
 
+    //create a child process
     pid = fork();
 
+    //fork fail condition
     if(pid == -1){
         perror("fork error");
         return false;
@@ -90,11 +100,13 @@ bool do_exec(int count, ...)
 
     }else{ //Parent process
 
+        //wait for child process exit
         if(waitpid(pid,&status,0) == -1){
             perror("wait error");
             return false;
         }
         
+        //check exit status after wait
         if( ! (WIFEXITED(status)) || WEXITSTATUS(status)){
             perror("wait error");
             return false;
@@ -138,13 +150,17 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
     pid_t pid;
     int rt;
 
+    //Opening the file where STDOUT needs to be redirected
     int fd = open(outputfile, O_WRONLY|O_TRUNC|O_CREAT, 0644);
     if(fd < 0){
         perror("open error");
         return false;
     }
 
+    //Create a child process
     pid = fork();
+
+    //Fork fail condition
     if(pid == -1){
         perror("fork error");
         return false;
@@ -163,14 +179,17 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
             exit(-1);
         }
     }
-    else{
+    else{//Parent process
+
         close(fd);
 
+        //wait for child process exit
         if(waitpid(pid,&status,0) == -1){
             perror("wait error");
             return false;
         }
         
+        //check exit status after wait
         if( ! (WIFEXITED(status)) || WEXITSTATUS(status)){
             perror("wait error");
             return false;
