@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 filesdir=$1 #1 argument is the file directory path
 searchstr=$2 #2 argument is the string to be searched
 
