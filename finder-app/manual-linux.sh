@@ -57,7 +57,7 @@ if [ ! -e ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ]; then
     make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} dtbs
 fi
 
-echo "Adding the Image in outdir "
+echo "Adding the Image in outdir  "
 #TODO: Copy the Image in outdir
 cp ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ${OUTDIR}/
 
