@@ -45,6 +45,21 @@ fi
 #make clean
 #make
 
+#Testing the presence of writer and finder application in path
+
+if [ -z $(which finder.sh) ]
+then
+	echo "finder application not in path"
+	exit 1
+fi
+
+if [ -z $(which writer) ]
+then
+	echo "writer application not in path"
+	exit 1
+fi
+
+
 for i in $( seq 1 $NUMFILES)
 do
 	writer "$WRITEDIR/${username}$i.txt" "$WRITESTR"
