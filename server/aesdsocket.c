@@ -110,7 +110,7 @@ void socket_open()
 
 	//6. Receive from socket
 
-	while(1){
+	// while(1){
 
 		printf("Receiving data from descriptor:%d.\n",sfd);
 		int recv_ret = recv(accept_fd, buff, BUFF_SIZE ,0); //**!check the flag
@@ -163,7 +163,7 @@ void socket_open()
 
 		memset(buff,0,BUFF_SIZE);
 
-	}
+	// }
 
 	//9. Close sfd, accept_fd
 	freeaddrinfo(results);
