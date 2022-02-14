@@ -10,7 +10,7 @@
 #include <errno.h>
 
 #define LISTEN_BACKLOG	10
-#define BUFF_SIZE	10
+#define BUFF_SIZE	20
 
 char *port = "9000";
 char *file_path = "/var/tmp/aesdsocketdata";
@@ -45,7 +45,8 @@ void socket_open()
 	struct addrinfo *results;
 	struct sockaddr client_addr;
 	socklen_t client_addr_size;
-	char buff[BUFF_SIZE];
+	char buff[BUFF_SIZE] = {0};
+	char output_buff[BUFF_SIZE] = {0};
 
 	//1. set the sockaddr using getaddrinfo
 	//clear the hints first
@@ -85,28 +86,56 @@ void socket_open()
 		exit(1);
 	}
 
-	//4. Listen on the socket
-	printf("Listening on socket.\n");
-	int list_ret = listen(sfd, LISTEN_BACKLOG);
-	if(list_ret == -1){
+	// //4. Listen on the socket
+	// printf("Listening on socket.\n");
+	// int list_ret = listen(sfd, LISTEN_BACKLOG);
+	// if(list_ret == -1){
+	// 	printf("Error: Listen failed\n");
+	// 	syslog(LOG_ERR,"Error: Listen failed");
+	// 	freeaddrinfo(results);
+	// 	exit(1);
+	// }
+
+	// //5. accept the socket
+	// printf("Accepting connection.\n");
+	// int accept_fd = accept(sfd,(struct sockaddr *)&client_addr, &client_addr_size);
+	// if(accept_fd == -1){
+	// 	printf("Error: accept failed\n");
+	// 	printf("accept error: %s\n",strerror(errno));
+	// 	syslog(LOG_ERR,"Error: accept failed");
+	// 	freeaddrinfo(results);
+	// 	exit(1);
+	// }
+	// syslog(LOG_DEBUG,"Accepting connection from %s",client_addr.sa_data);
+	// printf("Accepting connection from %s\n",client_addr.sa_data);
+
+	//char input;
+
+	while(1){
+
+		//4. Listen on the socket
+		printf("Listening on socket.\n");
+		int list_ret = listen(sfd, LISTEN_BACKLOG);
+		if(list_ret == -1){
 		printf("Error: Listen failed\n");
 		syslog(LOG_ERR,"Error: Listen failed");
 		freeaddrinfo(results);
 		exit(1);
-	}
+		}
 
-	//5. accept the socket
-	printf("Accepting connection.\n");
-	int accept_fd = accept(sfd,(struct sockaddr *)&client_addr, &client_addr_size);
-	if(accept_fd == -1){
+		//5. accept the socket
+		printf("Accepting connection.\n");
+		int accept_fd = accept(sfd,(struct sockaddr *)&client_addr, &client_addr_size);
+		if(accept_fd == -1){
 		printf("Error: accept failed\n");
 		printf("accept error: %s\n",strerror(errno));
 		syslog(LOG_ERR,"Error: accept failed");
 		freeaddrinfo(results);
 		exit(1);
-	}
-	syslog(LOG_DEBUG,"Accepting connection from %s",client_addr.sa_data);
-	printf("Accepting connection from %s\n",client_addr.sa_data);
+		}
+		syslog(LOG_DEBUG,"Accepting connection from %s",client_addr.sa_data);
+		printf("Accepting connection from %s\n",client_addr.sa_data);
+
 
 	//6. Receive from socket
 
@@ -125,38 +154,11 @@ void socket_open()
 
 		printf("Client data:%s bytes received:%d\n",buff,recv_ret);
 
-		//7. Add data to the file after receiving data from client
-		
-		// //Create file
-		// fd = creat(file_path, 0644);
-		// if(fd == -1){
-		// 	printf("Error: File could not be created!\n");
-		// 	syslog(LOG_ERR,"Error: File could not be created!");
-		// 	exit(1);
-		// }
-
-		// //Write file
-		// nr = write(fd,buff,BUFF_SIZE);
-		// if(nr == -1){
-		// 	printf("Error: File could not be written!\n");
-		// 	syslog(LOG_ERR,"Error: File could not be written!");
-		// 	exit(1);
-		// }else if(nr != BUFF_SIZE){
-		// 	printf("Error: File partially written!\n");
-		// 	syslog(LOG_ERR,"Error: File partially written!");
-		// 	exit(1);
-		// }
-		// syslog(LOG_DEBUG,"Writing received data from client to file");
-
-		// cl = close(fd);
-		// if(cl == -1){
-		// 	printf("Error: File could not be Closed!\n");
-		// 	syslog(LOG_ERR,"Error: File could not be Closed!");
-		// 	exit(1);
-		// }
-
 		//8. Send data to client
-		int send_ret = send(accept_fd,buff,recv_ret,0);
+		strcat(output_buff,buff);
+
+		printf("Writing data %s to :%d\n",output_buff,accept_fd);
+		int send_ret = send(accept_fd,output_buff,strlen(output_buff),0);
 		if(send_ret == -1){
 			printf("Error: Data could not be sent\n");
 			syslog(LOG_ERR,"Error: Data could not be sent");
@@ -166,6 +168,41 @@ void socket_open()
 		memset(buff,0,BUFF_SIZE);
 
 	}
+	// while(1){
+
+	// 	printf("Receiving data from descriptor:%d.\n",accept_fd);
+	// 	int recv_ret = recv(accept_fd, &input, 1 ,0); //**!check the flag
+	// 	if(recv_ret < 0){
+	// 		printf("Error: Receive failed\n");
+	// 		printf("recv error: %s\n",strerror(errno));
+	// 		syslog(LOG_ERR,"Error: Receive failed");
+	// 		exit(1);
+	// 	}else if(recv_ret == 0){
+	// 		break;
+	// 	}
+
+	// 	printf("Client data:%d bytes received:%d\n\n",input,recv_ret);
+
+	// 	strcat(buff,&input);
+
+	// 	//8. Send data to client after receiving packet
+	// 	if(input == 10){//line feed received
+
+	// 		printf("buff_count:%ld\n",strlen(buff));
+	// 		printf("Writing data %s to :%d\n",buff,accept_fd);
+	// 		int send_ret = send(accept_fd,buff,strlen(buff),0);
+	// 		if(send_ret == -1){
+	// 			printf("Error: Data could not be sent\n");
+	// 			syslog(LOG_ERR,"Error: Data could not be sent");
+	// 			exit(1);
+	// 		}
+	// 		printf("send length:%d\n",send_ret);
+	// 	}
+
+	// 	//memset(buff,0,BUFF_SIZE);
+
+	// }
+	}
 
 	//9. Close sfd, accept_fd
 	freeaddrinfo(results);
@@ -173,3 +210,37 @@ void socket_open()
 	//close(sfd);
 
 }
+
+// void write_to_file(){
+
+	//7. Add data to the file after receiving data from client
+	
+	// //Create file
+	// fd = creat(file_path, 0644);
+	// if(fd == -1){
+	// 	printf("Error: File could not be created!\n");
+	// 	syslog(LOG_ERR,"Error: File could not be created!");
+	// 	exit(1);
+	// }
+
+	// //Write file
+	// nr = write(fd,buff,BUFF_SIZE);
+	// if(nr == -1){
+	// 	printf("Error: File could not be written!\n");
+	// 	syslog(LOG_ERR,"Error: File could not be written!");
+	// 	exit(1);
+	// }else if(nr != BUFF_SIZE){
+	// 	printf("Error: File partially written!\n");
+	// 	syslog(LOG_ERR,"Error: File partially written!");
+	// 	exit(1);
+	// }
+	// syslog(LOG_DEBUG,"Writing received data from client to file");
+
+	// cl = close(fd);
+	// if(cl == -1){
+	// 	printf("Error: File could not be Closed!\n");
+	// 	syslog(LOG_ERR,"Error: File could not be Closed!");
+	// 	exit(1);
+	// }
+
+// }
