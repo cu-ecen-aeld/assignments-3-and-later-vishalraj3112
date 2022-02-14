@@ -110,7 +110,7 @@ void socket_open()
 
 	//6. Receive from socket
 
-	// while(1){
+	while(1){
 
 		printf("Receiving data from descriptor:%d.\n",sfd);
 		int recv_ret = recv(accept_fd, buff, BUFF_SIZE ,0); //**!check the flag
@@ -119,9 +119,11 @@ void socket_open()
 			printf("recv error: %s\n",strerror(errno));
 			syslog(LOG_ERR,"Error: Receive failed");
 			exit(1);
+		}else if(recv_ret == 0){
+			break;
 		}
 
-		printf("Client data:%s",buff);
+		printf("Client data:%s bytes received:%d\n",buff,recv_ret);
 
 		//7. Add data to the file after receiving data from client
 		
@@ -154,7 +156,7 @@ void socket_open()
 		// }
 
 		//8. Send data to client
-		int send_ret = send(accept_fd,buff,BUFF_SIZE,0);
+		int send_ret = send(accept_fd,buff,recv_ret,0);
 		if(send_ret == -1){
 			printf("Error: Data could not be sent\n");
 			syslog(LOG_ERR,"Error: Data could not be sent");
@@ -163,7 +165,7 @@ void socket_open()
 
 		memset(buff,0,BUFF_SIZE);
 
-	// }
+	}
 
 	//9. Close sfd, accept_fd
 	freeaddrinfo(results);
