@@ -106,6 +106,9 @@ void socket_open()
 
 	memset(op_buffer,0,BUFF_SIZE);
 
+	//close fd after creating
+	close(fd);
+
 
 	while(1){
 
@@ -133,62 +136,79 @@ void socket_open()
 		printf("Accepting connection from %s\n",client_addr.sa_data);
 
 
-	//6. Receive from socket
+		//6. Receive from socket
 
-	bool packet_comp = false;
-	int i;
+		bool packet_comp = false;
+		int i;
 
-	while(packet_comp == false){
+		while(packet_comp == false){
 
-		printf("Receiving data from descriptor:%d.\n",sfd);
+			printf("Receiving data from descriptor:%d.\n",sfd);
 
-		int recv_ret = recv(accept_fd, buff, BUFF_SIZE ,0); //**!check the flag
-		if(recv_ret < 0){
-			printf("Error: Receive failed\n");
-			printf("recv error: %s\n",strerror(errno));
-			syslog(LOG_ERR,"Error: Receive failed");
-			exit(1);
-		}else if(recv_ret == 0){
-			break;
-		}
-
-		printf("Client data:%s bytes received:%d\n",buff,recv_ret);
-
-		for(i = 0;i < BUFF_SIZE;i++){
-
-			if(buff[i] == 10){
-				packet_comp = true;
-				i++;
+			int recv_ret = recv(accept_fd, buff, BUFF_SIZE ,0); //**!check the flag
+			if(recv_ret < 0){
+				printf("Error: Receive failed\n");
+				printf("recv error: %s\n",strerror(errno));
+				syslog(LOG_ERR,"Error: Receive failed");
+				exit(1);
+			}else if(recv_ret == 0){
 				break;
 			}
 
-		}
-		packet_size += i;
+			printf("Client data:%s bytes received:%d\n",buff,recv_ret);
 
-		//reallocate to a larger buffer now
-		op_buffer = (char *) realloc(op_buffer,(packet_size+1));
-		if(op_buffer == NULL){
-			printf("Realloc failed\n");
+			for(i = 0;i < BUFF_SIZE;i++){
+
+				if(buff[i] == 10){
+					packet_comp = true;
+					i++;
+					break;
+				}
+
+			}
+			packet_size += i;
+
+			//reallocate to a larger buffer now
+			op_buffer = (char *) realloc(op_buffer,(packet_size+1));
+			if(op_buffer == NULL){
+				printf("Realloc failed\n");
+				exit(1);
+			}
+
+			strncat(op_buffer,buff,i);
+
+			memset(buff,0,BUFF_SIZE);
+		}
+
+		//Write this data to the file first
+		//Open in append mode first
+		fd = open(file_path,O_APPEND | O_WRONLY);
+		if(fd == -1){
+			printf("File open error for appending\n");
 			exit(1);
 		}
 
-		strncat(op_buffer,buff,i);
+		int nr = write(fd,op_buffer,strlen(op_buffer));
+		if(nr == -1){
+			printf("Error: File could not be written!\n");
+			syslog(LOG_ERR,"Error: File could not be written!");
+			exit(1);
+		}else if(nr != strlen(op_buffer)){
+			printf("Error: File partially written!\n");
+			syslog(LOG_ERR,"Error: File partially written!");
+			exit(1);
+		}
 
-		memset(buff,0,BUFF_SIZE);
-	}
+		//8. Send to client
+		printf("Writing data: %s to :%d\n",op_buffer,accept_fd);
 
-	//8. Send to client
-	printf("Writing data: %s to :%d\n",op_buffer,accept_fd);
-
-	int send_ret = send(accept_fd,op_buffer,strlen(op_buffer),0);
-	
-	if(send_ret == -1){
-		printf("Error: Data could not be sent\n");
-		syslog(LOG_ERR,"Error: Data could not be sent");
-		exit(1);
-	}
-
-
+		int send_ret = send(accept_fd,op_buffer,strlen(op_buffer),0);
+		
+		if(send_ret == -1){
+			printf("Error: Data could not be sent\n");
+			syslog(LOG_ERR,"Error: Data could not be sent");
+			exit(1);
+		}
 
 		// //8. Send data to client
 		// strcat(output_buff,buff);
