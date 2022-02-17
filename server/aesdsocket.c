@@ -199,8 +199,28 @@ void socket_open()
 			exit(1);
 		}
 
-		//8. Send to client
-		printf("Writing data: %s to :%d\n",op_buffer,accept_fd);
+		close(fd);
+
+		//Open file for reading for sending to client
+		char *read_data_buf = NULL;//dont need to malloc this, is inefficient
+		read_data_buf = (char *) malloc(sizeof(char) * strlen(op_buffer));
+
+		fd = open(file_path,O_RDONLY);
+		if(fd == -1){
+			printf("File open error for reading\n");
+			exit(1);
+		}
+
+		//read the file data in a buffer
+		int rd = read(fd, read_data_buf, strlen(op_buffer));
+		if(rd == -1){
+			printf("Reading from file failed!\n");
+			printf("file read error: %s\n",strerror(errno));
+			exit(1);
+		}
+
+		//8. Send to client data of the read file buffer
+		printf("Writing data: %s to :%d\n\n",op_buffer,accept_fd);
 
 		int send_ret = send(accept_fd,op_buffer,strlen(op_buffer),0);
 		
@@ -210,21 +230,11 @@ void socket_open()
 			exit(1);
 		}
 
-		// //8. Send data to client
-		// strcat(output_buff,buff);
-
-		// printf("Writing data %s to :%d\n",output_buff,accept_fd);
-		// int send_ret = send(accept_fd,output_buff,strlen(output_buff),0);
-		// if(send_ret == -1){
-		// 	printf("Error: Data could not be sent\n");
-		// 	syslog(LOG_ERR,"Error: Data could not be sent");
-		// 	exit(1);
-		// }
-
-		// memset(buff,0,BUFF_SIZE);
 
 	}
 	
+	//free malloced data
+	free(op_buffer);
 
 	//9. Close sfd, accept_fd
 	freeaddrinfo(results);
