@@ -10,7 +10,7 @@
 #include <errno.h>
 
 #define LISTEN_BACKLOG	10
-#define BUFF_SIZE	20
+#define BUFF_SIZE	100
 
 char *port = "9000";
 char *file_path = "/var/tmp/aesdsocketdata";
@@ -46,7 +46,7 @@ void socket_open()
 	struct sockaddr client_addr;
 	socklen_t client_addr_size;
 	char buff[BUFF_SIZE] = {0};
-	char output_buff[BUFF_SIZE] = {0};
+	//char output_buff[BUFF_SIZE] = {0};
 
 	//1. set the sockaddr using getaddrinfo
 	//clear the hints first
@@ -110,6 +110,9 @@ void socket_open()
 	// printf("Accepting connection from %s\n",client_addr.sa_data);
 
 	//char input;
+	int current_size = 0, packet_size = 0;
+	char *op_buffer = NULL;
+	char *buff_ptr = NULL;
 
 	while(1){
 
@@ -142,6 +145,7 @@ void socket_open()
 	while(1){
 
 		printf("Receiving data from descriptor:%d.\n",sfd);
+
 		int recv_ret = recv(accept_fd, buff, BUFF_SIZE ,0); //**!check the flag
 		if(recv_ret < 0){
 			printf("Error: Receive failed\n");
@@ -154,54 +158,57 @@ void socket_open()
 
 		printf("Client data:%s bytes received:%d\n",buff,recv_ret);
 
-		//8. Send data to client
-		strcat(output_buff,buff);
+		//point to the start of the received buffer
+		buff_ptr = buff;
 
-		printf("Writing data %s to :%d\n",output_buff,accept_fd);
-		int send_ret = send(accept_fd,output_buff,strlen(output_buff),0);
-		if(send_ret == -1){
-			printf("Error: Data could not be sent\n");
-			syslog(LOG_ERR,"Error: Data could not be sent");
-			exit(1);
+		while(current_size < BUFF_SIZE){
+
+			if(*buff_ptr == 10){// \n newline-endof packet check
+				
+				//if the received packet size is greater than current malloced, malloc
+				if(current_size > packet_size){
+					free(op_buffer);//first free earlier allocated
+					op_buffer = (char *) malloc(sizeof(char)*(current_size+packet_size+1));
+					memset(op_buffer,0,(current_size+packet_size+1));//clear for null character storage in the end
+					packet_size += current_size;
+				}
+				strcat(op_buffer,buff);
+				
+				//8. Send to client
+				printf("Writing data: %s to :%d\n",op_buffer,accept_fd);
+
+				int send_ret = send(accept_fd,op_buffer,strlen(op_buffer),0);
+				if(send_ret == -1){
+					printf("Error: Data could not be sent\n");
+					syslog(LOG_ERR,"Error: Data could not be sent");
+					exit(1);
+				}
+
+			}
+
+			buff_ptr++;
+			current_size++;
 		}
 
-		memset(buff,0,BUFF_SIZE);
+		//reset for next cycle
+		//current_size = 0;
+		//packet_size = 0;
+
+		// //8. Send data to client
+		// strcat(output_buff,buff);
+
+		// printf("Writing data %s to :%d\n",output_buff,accept_fd);
+		// int send_ret = send(accept_fd,output_buff,strlen(output_buff),0);
+		// if(send_ret == -1){
+		// 	printf("Error: Data could not be sent\n");
+		// 	syslog(LOG_ERR,"Error: Data could not be sent");
+		// 	exit(1);
+		// }
+
+		// memset(buff,0,BUFF_SIZE);
 
 	}
-	// while(1){
-
-	// 	printf("Receiving data from descriptor:%d.\n",accept_fd);
-	// 	int recv_ret = recv(accept_fd, &input, 1 ,0); //**!check the flag
-	// 	if(recv_ret < 0){
-	// 		printf("Error: Receive failed\n");
-	// 		printf("recv error: %s\n",strerror(errno));
-	// 		syslog(LOG_ERR,"Error: Receive failed");
-	// 		exit(1);
-	// 	}else if(recv_ret == 0){
-	// 		break;
-	// 	}
-
-	// 	printf("Client data:%d bytes received:%d\n\n",input,recv_ret);
-
-	// 	strcat(buff,&input);
-
-	// 	//8. Send data to client after receiving packet
-	// 	if(input == 10){//line feed received
-
-	// 		printf("buff_count:%ld\n",strlen(buff));
-	// 		printf("Writing data %s to :%d\n",buff,accept_fd);
-	// 		int send_ret = send(accept_fd,buff,strlen(buff),0);
-	// 		if(send_ret == -1){
-	// 			printf("Error: Data could not be sent\n");
-	// 			syslog(LOG_ERR,"Error: Data could not be sent");
-	// 			exit(1);
-	// 		}
-	// 		printf("send length:%d\n",send_ret);
-	// 	}
-
-	// 	//memset(buff,0,BUFF_SIZE);
-
-	// }
+	
 	}
 
 	//9. Close sfd, accept_fd
@@ -244,3 +251,40 @@ void socket_open()
 	// }
 
 // }
+
+//receive and send byte by byte
+
+// while(1){
+
+	// 	printf("Receiving data from descriptor:%d.\n",accept_fd);
+	// 	int recv_ret = recv(accept_fd, &input, 1 ,0); //**!check the flag
+	// 	if(recv_ret < 0){
+	// 		printf("Error: Receive failed\n");
+	// 		printf("recv error: %s\n",strerror(errno));
+	// 		syslog(LOG_ERR,"Error: Receive failed");
+	// 		exit(1);
+	// 	}else if(recv_ret == 0){
+	// 		break;
+	// 	}
+
+	// 	printf("Client data:%d bytes received:%d\n\n",input,recv_ret);
+
+	// 	strcat(buff,&input);
+
+	// 	//8. Send data to client after receiving packet
+	// 	if(input == 10){//line feed received
+
+	// 		printf("buff_count:%ld\n",strlen(buff));
+	// 		printf("Writing data %s to :%d\n",buff,accept_fd);
+	// 		int send_ret = send(accept_fd,buff,strlen(buff),0);
+	// 		if(send_ret == -1){
+	// 			printf("Error: Data could not be sent\n");
+	// 			syslog(LOG_ERR,"Error: Data could not be sent");
+	// 			exit(1);
+	// 		}
+	// 		printf("send length:%d\n",send_ret);
+	// 	}
+
+	// 	//memset(buff,0,BUFF_SIZE);
+
+	// }
