@@ -9,14 +9,31 @@
 #include <unistd.h>
 #include <errno.h>
 #include <stdbool.h>
+#include <signal.h>
 
 #define LISTEN_BACKLOG	10
 #define BUFF_SIZE	100
 
 char *port = "9000";
 char *file_path = "/var/tmp/aesdsocketdata";
+char *op_buffer = NULL;
 
 void socket_open(void);
+
+void sighandler(int sig_no){
+
+	if(sig_no == SIGINT){
+		printf("SIGINT detected!\n");
+		unlink(file_path); //delete the file
+		free(op_buffer);
+	}else if(sig_no == SIGTERM){
+		printf("SIGTERM detected!\n");
+		unlink(file_path); //delete the file
+		free(op_buffer);
+	}
+
+	exit(EXIT_SUCCESS);
+}
 
 int main()
 {
@@ -26,6 +43,10 @@ int main()
 
 	//Write a test string to log
 	syslog(LOG_DEBUG,"Syslog opened");
+
+	/*register for signal*/
+	signal(SIGINT,sighandler);
+	signal(SIGTERM,sighandler);
 
 	socket_open();
 
@@ -48,6 +69,8 @@ void socket_open()
 	socklen_t client_addr_size;
 	char buff[BUFF_SIZE] = {0};
 	//char output_buff[BUFF_SIZE] = {0};
+
+	memset(buff,0,BUFF_SIZE);
 
 	//1. set the sockaddr using getaddrinfo
 	//clear the hints first
@@ -88,7 +111,7 @@ void socket_open()
 	}
 
 	int packet_size = 0;
-	char *op_buffer = NULL;
+	//char *op_buffer = NULL;
 
 	//Create file
 	int fd = creat(file_path, 0644);
@@ -109,6 +132,8 @@ void socket_open()
 	//close fd after creating
 	close(fd);
 
+	//free after use
+	freeaddrinfo(results);
 
 	while(1){
 
@@ -116,21 +141,23 @@ void socket_open()
 		printf("Listening on socket.\n");
 		int list_ret = listen(sfd, LISTEN_BACKLOG);
 		if(list_ret == -1){
-		printf("Error: Listen failed\n");
-		syslog(LOG_ERR,"Error: Listen failed");
-		freeaddrinfo(results);
-		exit(1);
+			printf("Error: Listen failed\n");
+			syslog(LOG_ERR,"Error: Listen failed");
+			freeaddrinfo(results);
+			exit(1);
 		}
 
 		//5. accept the socket
+		client_addr_size = sizeof(struct sockaddr);
+
 		printf("Accepting connection.\n");
 		int accept_fd = accept(sfd,(struct sockaddr *)&client_addr, &client_addr_size);
 		if(accept_fd == -1){
-		printf("Error: accept failed\n");
-		printf("accept error: %s\n",strerror(errno));
-		syslog(LOG_ERR,"Error: accept failed");
-		freeaddrinfo(results);
-		exit(1);
+			printf("Error: accept failed\n");
+			printf("accept error: %s\n",strerror(errno));
+			syslog(LOG_ERR,"Error: accept failed");
+			freeaddrinfo(results);
+			exit(1);
 		}
 		syslog(LOG_DEBUG,"Accepting connection from %s",client_addr.sa_data);
 		printf("Accepting connection from %s\n",client_addr.sa_data);
@@ -140,12 +167,13 @@ void socket_open()
 
 		bool packet_comp = false;
 		int i;
+		int recv_ret = 0;
 
 		while(packet_comp == false){
 
 			printf("Receiving data from descriptor:%d.\n",sfd);
 
-			int recv_ret = recv(accept_fd, buff, BUFF_SIZE ,0); //**!check the flag
+			recv_ret = recv(accept_fd, buff, BUFF_SIZE ,0); //**!check the flag
 			if(recv_ret < 0){
 				printf("Error: Receive failed\n");
 				printf("recv error: %s\n",strerror(errno));
@@ -155,7 +183,8 @@ void socket_open()
 				break;
 			}
 
-			printf("Client data:%s bytes received:%d\n",buff,recv_ret);
+			//Following line giving valgrind error
+			//printf("Client data:%s bytes received:%d\n",buff,recv_ret);
 
 			for(i = 0;i < BUFF_SIZE;i++){
 
@@ -230,7 +259,10 @@ void socket_open()
 			exit(1);
 		}
 
-
+		close(fd);
+		free(read_data_buf);
+		//free(op_buffer);
+		//close(accept_fd);
 	}
 	
 	//free malloced data
@@ -239,7 +271,7 @@ void socket_open()
 	//9. Close sfd, accept_fd
 	freeaddrinfo(results);
 	//close(accept_fd);
-	//close(sfd);
+	close(sfd);
 
 }
 
