@@ -30,12 +30,15 @@ void sighandler(int sig_no){
 		printf("SIGTERM detected!\n");
 		unlink(file_path); //delete the file
 		free(op_buffer);
+	}else if(sig_no == SIGKILL){
+		printf("SIGKILL detected!\n");
+		unlink(file_path); //delete the file
 	}
 
 	exit(EXIT_SUCCESS);
 }
 
-int main()
+int main(int argc, char *argv[])
 {
 
 	//open the log file
@@ -47,6 +50,12 @@ int main()
 	/*register for signal*/
 	signal(SIGINT,sighandler);
 	signal(SIGTERM,sighandler);
+	signal(SIGKILL,sighandler);
+
+	if(argc > 1){
+		printf("Entering daemon mode!\n");
+		daemon(0,0);
+	}
 
 	socket_open();
 
@@ -112,6 +121,7 @@ void socket_open()
 
 	int packet_size = 0;
 	//char *op_buffer = NULL;
+	char c = 0;
 
 	//Create file
 	int fd = creat(file_path, 0644);
@@ -121,13 +131,13 @@ void socket_open()
 		exit(1);
 	}
 
-	op_buffer = (char *) malloc(sizeof(char)*BUFF_SIZE);
-	if(op_buffer == NULL){
-		printf("Malloc failed!\n");
-		exit(1);
-	}
+	// op_buffer = (char *) malloc(sizeof(char)*BUFF_SIZE);
+	// if(op_buffer == NULL){
+	// 	printf("Malloc failed!\n");
+	// 	exit(1);
+	// }
 
-	memset(op_buffer,0,BUFF_SIZE);
+	// memset(op_buffer,0,BUFF_SIZE);
 
 	//close fd after creating
 	close(fd);
@@ -136,6 +146,15 @@ void socket_open()
 	freeaddrinfo(results);
 
 	while(1){
+
+		//make the buffer
+		op_buffer = (char *) malloc(sizeof(char)*BUFF_SIZE);
+		if(op_buffer == NULL){
+			printf("Malloc failed!\n");
+			exit(1);
+		}
+
+		memset(op_buffer,0,BUFF_SIZE);
 
 		//4. Listen on the socket
 		printf("Listening on socket.\n");
@@ -171,7 +190,7 @@ void socket_open()
 
 		while(packet_comp == false){
 
-			printf("Receiving data from descriptor:%d.\n",sfd);
+			//printf("Receiving data from descriptor:%d.\n",sfd);
 
 			recv_ret = recv(accept_fd, buff, BUFF_SIZE ,0); //**!check the flag
 			if(recv_ret < 0){
@@ -231,8 +250,10 @@ void socket_open()
 		close(fd);
 
 		//Open file for reading for sending to client
-		char *read_data_buf = NULL;//dont need to malloc this, is inefficient
-		read_data_buf = (char *) malloc(sizeof(char) * strlen(op_buffer));
+		// char *read_data_buf = NULL;//dont need to malloc this, is inefficient
+		// read_data_buf = (char *) malloc(sizeof(char) * strlen(op_buffer));
+		// memset(read_data_buf,0,strlen(op_buffer));
+		memset(buff,0,BUFF_SIZE);
 
 		fd = open(file_path,O_RDONLY);
 		if(fd == -1){
@@ -240,28 +261,35 @@ void socket_open()
 			exit(1);
 		}
 
-		//read the file data in a buffer
-		int rd = read(fd, read_data_buf, strlen(op_buffer));
-		if(rd == -1){
-			printf("Reading from file failed!\n");
-			printf("file read error: %s\n",strerror(errno));
-			exit(1);
+		//sending data byte-by-byte
+		for(int i=0;i<packet_size;i++){
+
+			//read the file data in a buffer
+			//int rd = read(fd, read_data_buf, strlen(op_buffer));
+			int rd = read(fd, &c, 1);
+			if(rd == -1){
+				printf("Reading from file failed!\n");
+				printf("file read error: %s\n",strerror(errno));
+				exit(1);
+			}
+
+			//8. Send to client data of the read file buffer
+			//printf("Writing data: %c to :%d\n\n",c,accept_fd);
+
+			//int send_ret = send(accept_fd,read_data_buf,strlen(op_buffer),0);
+			int send_ret = send(accept_fd,&c,1,0);
+			if(send_ret == -1){
+				printf("Error: Data could not be sent\n");
+				syslog(LOG_ERR,"Error: Data could not be sent");
+				exit(1);
+			}
 		}
 
-		//8. Send to client data of the read file buffer
-		printf("Writing data: %s to :%d\n\n",op_buffer,accept_fd);
 
-		int send_ret = send(accept_fd,op_buffer,strlen(op_buffer),0);
-		
-		if(send_ret == -1){
-			printf("Error: Data could not be sent\n");
-			syslog(LOG_ERR,"Error: Data could not be sent");
-			exit(1);
-		}
 
 		close(fd);
-		free(read_data_buf);
-		//free(op_buffer);
+		//free(read_data_buf);
+		free(op_buffer);
 		//close(accept_fd);
 	}
 	
