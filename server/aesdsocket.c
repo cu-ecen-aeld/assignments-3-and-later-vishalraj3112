@@ -1,3 +1,14 @@
+/***********************************************************************************************************************
+* File Name    : aesdsocket.c
+* Project      : AESD Assignment 5
+* Version      : 1.0
+* Description  : Contains all the function implementation code for socket server application.
+* Author       : Vishal Raj
+* Creation Date: 2.18.22
+* References   : https://lloydrochester.com/post/c/unix-daemon-example/, Linux Man pages,
+*                https://www.qnx.com/developers/docs/6.5.0SP1.update/com.qnx.doc.neutrino_lib_ref/i/inet_ntop.html,
+*                https://www.binarytides.com/socket-programming-c-linux-tutorial/.
+***********************************************************************************************************************/
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,7 +23,6 @@
 #include <signal.h>
 #include <arpa/inet.h>
 
-
 #define LISTEN_BACKLOG	10
 #define BUFF_SIZE	100
 
@@ -20,8 +30,19 @@ char *port = "9000";
 char *file_path = "/var/tmp/aesdsocketdata";
 char *op_buffer = NULL;
 
+//defining socket file descriptor
+int sfd = 0;
+int accept_fd = 0;
+
+//Function prototypes
 void socket_open(void);
 
+/***********************************************************************************************
+* Name          : sighandler
+* Description   : used to catch the particular signal and perform graceful shutdown.
+* Parameters    : sig_no - the signal received to be handled.
+* RETURN        : None
+***********************************************************************************************/
 void sighandler(int sig_no){
 
 	//handle the particular signal
@@ -31,9 +52,11 @@ void sighandler(int sig_no){
 		case SIGTERM:
 		case SIGKILL:
 			printf("SIGINT/SIGTEM/SIGKILL detected!\n");
-			syslog(LOG_DEBUG,"SIGINT/SIGTEM/SIGKILL detected!");
+			syslog(LOG_DEBUG,"Caught signal, exiting");
 			unlink(file_path); //delete the file
 			free(op_buffer);
+			close(accept_fd);
+			close(sfd);
 			break;
 
 	}
@@ -41,6 +64,13 @@ void sighandler(int sig_no){
 	exit(EXIT_SUCCESS);
 }
 
+/***********************************************************************************************
+* Name          : main
+* Description   : used to intialize syslog, signal and call other functions.
+* Parameters    : argc- command line argument count
+*                 argv[] - command line argument content.
+* RETURN        : exit status of program
+***********************************************************************************************/
 int main(int argc, char *argv[])
 {
 
@@ -57,6 +87,7 @@ int main(int argc, char *argv[])
 
 	if(argc > 1){
 		printf("Entering daemon mode!\n");
+		syslog(LOG_DEBUG,"aesdsocket entering daemon mode");
 		daemon(0,0);
 	}
 
@@ -65,16 +96,18 @@ int main(int argc, char *argv[])
 	//closing syslog
 	closelog();
 
-	
 	return 0;
 }
 
-void socket_open()
+/***********************************************************************************************
+* Name          : socket_open
+* Description   : perform all the server socket configuration related steps, read packets from 
+*                 client, write packet to the file and sends data back to client.
+* Parameters    : None
+* RETURN        : None
+***********************************************************************************************/
+void socket_open(void)
 {
-	//defining socket file descriptor
-	int sfd = 0;
-	int accept_fd = 0;
-
 	//defining all socket related resources
 	struct addrinfo hints;
 	struct addrinfo *results;
@@ -290,13 +323,10 @@ void socket_open()
 		syslog(LOG_DEBUG,"Closed connection from %s",ipv_4);
 		printf("Closed connection from %s\n",ipv_4);
 	}
-	
-	//free malloced data
-	//free(op_buffer);
 
 	//9. Close sfd, accept_fd
-	//freeaddrinfo(results);
 	close(accept_fd);
 	close(sfd);
 
 }
+//[EOF]
