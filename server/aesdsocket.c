@@ -10,6 +10,8 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <signal.h>
+#include <arpa/inet.h>
+
 
 #define LISTEN_BACKLOG	10
 #define BUFF_SIZE	100
@@ -22,17 +24,18 @@ void socket_open(void);
 
 void sighandler(int sig_no){
 
-	if(sig_no == SIGINT){
-		printf("SIGINT detected!\n");
-		unlink(file_path); //delete the file
-		free(op_buffer);
-	}else if(sig_no == SIGTERM){
-		printf("SIGTERM detected!\n");
-		unlink(file_path); //delete the file
-		free(op_buffer);
-	}else if(sig_no == SIGKILL){
-		printf("SIGKILL detected!\n");
-		unlink(file_path); //delete the file
+	//handle the particular signal
+	switch(sig_no)
+	{
+		case SIGINT:
+		case SIGTERM:
+		case SIGKILL:
+			printf("SIGINT/SIGTEM/SIGKILL detected!\n");
+			syslog(LOG_DEBUG,"SIGINT/SIGTEM/SIGKILL detected!");
+			unlink(file_path); //delete the file
+			free(op_buffer);
+			break;
+
 	}
 
 	exit(EXIT_SUCCESS);
@@ -70,26 +73,27 @@ void socket_open()
 {
 	//defining socket file descriptor
 	int sfd = 0;
-	//int fd,nr,cl;
+	int accept_fd = 0;
 
+	//defining all socket related resources
 	struct addrinfo hints;
 	struct addrinfo *results;
 	struct sockaddr client_addr;
 	socklen_t client_addr_size;
 	char buff[BUFF_SIZE] = {0};
-	//char output_buff[BUFF_SIZE] = {0};
+	char ipv_4[INET_ADDRSTRLEN];
 
 	memset(buff,0,BUFF_SIZE);
 
-	//1. set the sockaddr using getaddrinfo
+	//1. Set the sockaddr using getaddrinfo
+	
 	//clear the hints first
 	memset(&hints,0,sizeof(hints));
+	
 	//set all the hint parameters then
 	hints.ai_flags = AI_PASSIVE;
-	hints.ai_family = AF_INET6;
-	hints.ai_socktype = SOCK_STREAM;
 
-
+	//store the result 
 	int getaddr_ret = getaddrinfo(NULL,port,&hints,&results);
 	if(getaddr_ret != 0){
 		printf("Error: getaddrinfo failed\n");
@@ -99,7 +103,7 @@ void socket_open()
 
 	//2. First open the socket
 	printf("Opening socket.\n");
-	sfd = socket(PF_INET6, SOCK_STREAM, 0);//IPv4,TCP,Any protocol
+	sfd = socket(PF_INET, SOCK_STREAM, 0);//IPv4,TCP,Any protocol
 	if(sfd == -1){
 		printf("Error: socket() failed\n");
 		syslog(LOG_ERR,"Error: socket() failed");
@@ -119,8 +123,8 @@ void socket_open()
 		exit(1);
 	}
 
+	//variables required for packet detection
 	int packet_size = 0;
-	//char *op_buffer = NULL;
 	char c = 0;
 
 	//Create file
@@ -131,14 +135,6 @@ void socket_open()
 		exit(1);
 	}
 
-	// op_buffer = (char *) malloc(sizeof(char)*BUFF_SIZE);
-	// if(op_buffer == NULL){
-	// 	printf("Malloc failed!\n");
-	// 	exit(1);
-	// }
-
-	// memset(op_buffer,0,BUFF_SIZE);
-
 	//close fd after creating
 	close(fd);
 
@@ -147,7 +143,7 @@ void socket_open()
 
 	while(1){
 
-		//make the buffer
+		//make the buffer required for client input storage
 		op_buffer = (char *) malloc(sizeof(char)*BUFF_SIZE);
 		if(op_buffer == NULL){
 			printf("Malloc failed!\n");
@@ -170,7 +166,7 @@ void socket_open()
 		client_addr_size = sizeof(struct sockaddr);
 
 		printf("Accepting connection.\n");
-		int accept_fd = accept(sfd,(struct sockaddr *)&client_addr, &client_addr_size);
+		accept_fd = accept(sfd,(struct sockaddr *)&client_addr, &client_addr_size);
 		if(accept_fd == -1){
 			printf("Error: accept failed\n");
 			printf("accept error: %s\n",strerror(errno));
@@ -178,16 +174,22 @@ void socket_open()
 			freeaddrinfo(results);
 			exit(1);
 		}
-		syslog(LOG_DEBUG,"Accepting connection from %s",client_addr.sa_data);
-		printf("Accepting connection from %s\n",client_addr.sa_data);
 
+		//Below logic required to get ip address in readable format.
+		struct sockaddr_in *addr = (struct sockaddr_in *)&client_addr;
 
-		//6. Receive from socket
+		inet_ntop(AF_INET, &(addr->sin_addr),ipv_4,INET_ADDRSTRLEN);
 
+		//Logging the client connection and address
+		syslog(LOG_DEBUG,"Accepting connection from %s",ipv_4);
+		printf("Accepting connection from %s\n",ipv_4);
+
+		//Package storage related variables
 		bool packet_comp = false;
 		int i;
 		int recv_ret = 0;
 
+		/*Packet reception, detection and storage logic*/
 		while(packet_comp == false){
 
 			//printf("Receiving data from descriptor:%d.\n",sfd);
@@ -202,9 +204,9 @@ void socket_open()
 				break;
 			}
 
-			//Following line giving valgrind error
-			//printf("Client data:%s bytes received:%d\n",buff,recv_ret);
-
+			/*Detect '\n' or ASCII value 
+			  10 in the packet.
+			*/
 			for(i = 0;i < BUFF_SIZE;i++){
 
 				if(buff[i] == 10){
@@ -216,7 +218,8 @@ void socket_open()
 			}
 			packet_size += i;
 
-			//reallocate to a larger buffer now
+			/*reallocate to a larger buffer now as static buffer can
+			  only accomodate upto fixed size*/
 			op_buffer = (char *) realloc(op_buffer,(packet_size+1));
 			if(op_buffer == NULL){
 				printf("Realloc failed\n");
@@ -228,8 +231,8 @@ void socket_open()
 			memset(buff,0,BUFF_SIZE);
 		}
 
-		//Write this data to the file first
-		//Open in append mode first
+		/*Write the data received from client to the 
+		file first & open in append mode*/
 		fd = open(file_path,O_APPEND | O_WRONLY);
 		if(fd == -1){
 			printf("File open error for appending\n");
@@ -249,10 +252,9 @@ void socket_open()
 
 		close(fd);
 
-		//Open file for reading for sending to client
-		// char *read_data_buf = NULL;//dont need to malloc this, is inefficient
-		// read_data_buf = (char *) malloc(sizeof(char) * strlen(op_buffer));
-		// memset(read_data_buf,0,strlen(op_buffer));
+		/*Below is the logic for reading the data from the
+		  input file byte by byte and sending to client.
+		*/
 		memset(buff,0,BUFF_SIZE);
 
 		fd = open(file_path,O_RDONLY);
@@ -265,7 +267,6 @@ void socket_open()
 		for(int i=0;i<packet_size;i++){
 
 			//read the file data in a buffer
-			//int rd = read(fd, read_data_buf, strlen(op_buffer));
 			int rd = read(fd, &c, 1);
 			if(rd == -1){
 				printf("Reading from file failed!\n");
@@ -273,10 +274,6 @@ void socket_open()
 				exit(1);
 			}
 
-			//8. Send to client data of the read file buffer
-			//printf("Writing data: %c to :%d\n\n",c,accept_fd);
-
-			//int send_ret = send(accept_fd,read_data_buf,strlen(op_buffer),0);
 			int send_ret = send(accept_fd,&c,1,0);
 			if(send_ret == -1){
 				printf("Error: Data could not be sent\n");
@@ -285,91 +282,21 @@ void socket_open()
 			}
 		}
 
-
-
 		close(fd);
-		//free(read_data_buf);
+
+		//Free the allocated buffer
 		free(op_buffer);
-		//close(accept_fd);
+
+		syslog(LOG_DEBUG,"Closed connection from %s",ipv_4);
+		printf("Closed connection from %s\n",ipv_4);
 	}
 	
 	//free malloced data
-	free(op_buffer);
+	//free(op_buffer);
 
 	//9. Close sfd, accept_fd
-	freeaddrinfo(results);
-	//close(accept_fd);
+	//freeaddrinfo(results);
+	close(accept_fd);
 	close(sfd);
 
 }
-
-// void write_to_file(){
-
-	//7. Add data to the file after receiving data from client
-	
-	// //Create file
-	// fd = creat(file_path, 0644);
-	// if(fd == -1){
-	// 	printf("Error: File could not be created!\n");
-	// 	syslog(LOG_ERR,"Error: File could not be created!");
-	// 	exit(1);
-	// }
-
-	// //Write file
-	// nr = write(fd,buff,BUFF_SIZE);
-	// if(nr == -1){
-	// 	printf("Error: File could not be written!\n");
-	// 	syslog(LOG_ERR,"Error: File could not be written!");
-	// 	exit(1);
-	// }else if(nr != BUFF_SIZE){
-	// 	printf("Error: File partially written!\n");
-	// 	syslog(LOG_ERR,"Error: File partially written!");
-	// 	exit(1);
-	// }
-	// syslog(LOG_DEBUG,"Writing received data from client to file");
-
-	// cl = close(fd);
-	// if(cl == -1){
-	// 	printf("Error: File could not be Closed!\n");
-	// 	syslog(LOG_ERR,"Error: File could not be Closed!");
-	// 	exit(1);
-	// }
-
-// }
-
-//receive and send byte by byte
-
-// while(1){
-
-	// 	printf("Receiving data from descriptor:%d.\n",accept_fd);
-	// 	int recv_ret = recv(accept_fd, &input, 1 ,0); //**!check the flag
-	// 	if(recv_ret < 0){
-	// 		printf("Error: Receive failed\n");
-	// 		printf("recv error: %s\n",strerror(errno));
-	// 		syslog(LOG_ERR,"Error: Receive failed");
-	// 		exit(1);
-	// 	}else if(recv_ret == 0){
-	// 		break;
-	// 	}
-
-	// 	printf("Client data:%d bytes received:%d\n\n",input,recv_ret);
-
-	// 	strcat(buff,&input);
-
-	// 	//8. Send data to client after receiving packet
-	// 	if(input == 10){//line feed received
-
-	// 		printf("buff_count:%ld\n",strlen(buff));
-	// 		printf("Writing data %s to :%d\n",buff,accept_fd);
-	// 		int send_ret = send(accept_fd,buff,strlen(buff),0);
-	// 		if(send_ret == -1){
-	// 			printf("Error: Data could not be sent\n");
-	// 			syslog(LOG_ERR,"Error: Data could not be sent");
-	// 			exit(1);
-	// 		}
-	// 		printf("send length:%d\n",send_ret);
-	// 	}
-
-	// 	//memset(buff,0,BUFF_SIZE);
-
-	// }
