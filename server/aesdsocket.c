@@ -85,7 +85,10 @@ int main(int argc, char *argv[])
 	signal(SIGTERM,sighandler);
 	signal(SIGKILL,sighandler);
 
-	if(argc > 1){
+	//Check the actual value or argv here:
+	if((argc > 1) && (!strcmp("-d",(char*)argv[1]))){
+	
+	//if(argc > 1){
 		printf("Entering daemon mode!\n");
 		syslog(LOG_DEBUG,"aesdsocket entering daemon mode");
 		
