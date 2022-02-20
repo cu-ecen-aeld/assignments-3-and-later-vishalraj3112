@@ -135,6 +135,8 @@ void socket_open(void)
 	
 	//set all the hint parameters then
 	hints.ai_flags = AI_PASSIVE;
+	hints.ai_family = AF_INET6;
+	hints.ai_socktype = SOCK_STREAM;
 
 	//store the result 
 	int getaddr_ret = getaddrinfo(NULL,port,&hints,&results);
@@ -146,7 +148,7 @@ void socket_open(void)
 
 	//2. First open the socket
 	printf("Opening socket.\n");
-	sfd = socket(PF_INET, SOCK_STREAM, 0);//IPv4,TCP,Any protocol
+	sfd = socket(PF_INET6, SOCK_STREAM, 0);//IPv4,TCP,Any protocol
 	if(sfd == -1){
 		printf("Error: socket() failed\n");
 		syslog(LOG_ERR,"Error: socket() failed");
