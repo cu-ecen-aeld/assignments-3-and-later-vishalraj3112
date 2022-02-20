@@ -88,7 +88,14 @@ int main(int argc, char *argv[])
 	if(argc > 1){
 		printf("Entering daemon mode!\n");
 		syslog(LOG_DEBUG,"aesdsocket entering daemon mode");
-		daemon(0,0);
+		
+		//Enter daemon mode
+		int d_ret = daemon(0,0);
+		if(d_ret == -1){
+			printf("Entering daemon mode failed!\n");
+			syslog(LOG_DEBUG,"Entering daemon mode failed!");
+			printf("daemon error: %s\n",strerror(errno));
+		}
 	}
 
 	socket_open();
