@@ -22,9 +22,12 @@
 #include <stdbool.h>
 #include <signal.h>
 #include <arpa/inet.h>
+#include <pthread.h>
+#include <sys/queue.h>
 
 #define LISTEN_BACKLOG	10
 #define BUFF_SIZE	100
+#define TOTAL_THREADS 10
 
 char *port = "9000";
 char *file_path = "/var/tmp/aesdsocketdata";
@@ -36,6 +39,29 @@ int accept_fd = 0;
 
 //Function prototypes
 void socket_open(void);
+void* thread_handler(void* thread_param);
+void temp_function(void);
+
+//Packet parse variables
+int packet_size = 0;
+char c = 0;
+char buff[BUFF_SIZE] = {0};
+
+//Thread parameter structure
+typedef struct{
+	pthread_t thread_id;
+	int cl_accept_fd;
+	pthread_mutex_t *mutex;
+}thread_params;
+
+//Linked list node
+struct slist_data_s{
+	thread_params	thread_param;
+	SLIST_ENTRY(slist_data_s) entries;
+};
+
+typedef struct slist_data_s slist_data_t;
+
 
 /***********************************************************************************************
 * Name          : sighandler
@@ -123,10 +149,15 @@ void socket_open(void)
 	struct addrinfo *results;
 	struct sockaddr client_addr;
 	socklen_t client_addr_size;
-	char buff[BUFF_SIZE] = {0};
+	//char buff[BUFF_SIZE] = {0};
 	char ipv_4[INET_ADDRSTRLEN];
+	//new variables for A6-P1
+	slist_data_t *datap = NULL;
+	SLIST_HEAD(slisthead, slist_data_s) head;
+	SLIST_INIT(&head);
+	pthread_mutex_t mutex_lock;
 
-	memset(buff,0,BUFF_SIZE);
+	//memset(buff,0,BUFF_SIZE);
 
 	//1. Set the sockaddr using getaddrinfo
 	
@@ -168,9 +199,9 @@ void socket_open(void)
 		exit(1);
 	}
 
-	//variables required for packet detection
-	int packet_size = 0;
-	char c = 0;
+	// //variables required for packet detection
+	// int packet_size = 0;
+	// char c = 0;
 
 	//Create file
 	int fd = creat(file_path, 0644);
@@ -229,116 +260,178 @@ void socket_open(void)
 		syslog(LOG_DEBUG,"Accepting connection from %s",ipv_4);
 		printf("Accepting connection from %s\n",ipv_4);
 
-		//Package storage related variables
-		bool packet_comp = false;
-		int i;
-		int recv_ret = 0;
+		/*Adding below part for A6-P1*/
 
-		/*Packet reception, detection and storage logic*/
-		while(packet_comp == false){
+		//allocating new node for the data
+		datap = (slist_data_t *) malloc(sizeof(slist_data_t));
+		SLIST_INSERT_HEAD(&head,datap,entries);
 
-			//printf("Receiving data from descriptor:%d.\n",sfd);
+		//Inserting thread parameters now
+		datap->thread_param.cl_accept_fd = accept_fd;
+		datap->thread_param.mutex = &mutex_lock;
 
-			recv_ret = recv(accept_fd, buff, BUFF_SIZE ,0); //**!check the flag
-			if(recv_ret < 0){
-				printf("Error: Receive failed\n");
-				printf("recv error: %s\n",strerror(errno));
-				syslog(LOG_ERR,"Error: Receive failed");
-				exit(1);
-			}else if(recv_ret == 0){
-				break;
-			}
+		pthread_create(&(datap->thread_param.thread_id), 			//the thread id to be created
+							NULL,			//the thread attribute to be passed
+							thread_handler,				//the thread handler to be executed
+							(void *) &datap->thread_param//the thread parameter to be passed
+							);
 
-			/*Detect '\n' or ASCII value 
-			  10 in the packet.
-			*/
-			for(i = 0;i < BUFF_SIZE;i++){
+		printf("All thread created now waiting to exit\n");
 
-				if(buff[i] == 10){
-					packet_comp = true;
-					i++;
-					break;
-				}
-
-			}
-			packet_size += i;
-
-			/*reallocate to a larger buffer now as static buffer can
-			  only accomodate upto fixed size*/
-			op_buffer = (char *) realloc(op_buffer,(packet_size+1));
-			if(op_buffer == NULL){
-				printf("Realloc failed\n");
-				exit(1);
-			}
-
-			strncat(op_buffer,buff,i);
-
-			memset(buff,0,BUFF_SIZE);
+		SLIST_FOREACH(datap,&head,entries){
+			
+			pthread_join(datap->thread_param.thread_id,NULL);
+			datap = SLIST_FIRST(&head);
+			SLIST_REMOVE_HEAD(&head, entries);
+			free(datap);
 		}
-
-		/*Write the data received from client to the 
-		file first & open in append mode*/
-		fd = open(file_path,O_APPEND | O_WRONLY);
-		if(fd == -1){
-			printf("File open error for appending\n");
-			exit(1);
-		}
-
-		int nr = write(fd,op_buffer,strlen(op_buffer));
-		if(nr == -1){
-			printf("Error: File could not be written!\n");
-			syslog(LOG_ERR,"Error: File could not be written!");
-			exit(1);
-		}else if(nr != strlen(op_buffer)){
-			printf("Error: File partially written!\n");
-			syslog(LOG_ERR,"Error: File partially written!");
-			exit(1);
-		}
-
-		close(fd);
-
-		/*Below is the logic for reading the data from the
-		  input file byte by byte and sending to client.
-		*/
-		memset(buff,0,BUFF_SIZE);
-
-		fd = open(file_path,O_RDONLY);
-		if(fd == -1){
-			printf("File open error for reading\n");
-			exit(1);
-		}
-
-		//sending data byte-by-byte
-		for(int i=0;i<packet_size;i++){
-
-			//read the file data in a buffer
-			int rd = read(fd, &c, 1);
-			if(rd == -1){
-				printf("Reading from file failed!\n");
-				printf("file read error: %s\n",strerror(errno));
-				exit(1);
-			}
-
-			int send_ret = send(accept_fd,&c,1,0);
-			if(send_ret == -1){
-				printf("Error: Data could not be sent\n");
-				syslog(LOG_ERR,"Error: Data could not be sent");
-				exit(1);
-			}
-		}
-
-		close(fd);
-
-		//Free the allocated buffer
-		free(op_buffer);
+		
+		printf("All thread exited!\n");
 
 		syslog(LOG_DEBUG,"Closed connection from %s",ipv_4);
 		printf("Closed connection from %s\n",ipv_4);
+
 	}
 
 	//9. Close sfd, accept_fd
 	close(accept_fd);
 	close(sfd);
 
+}
+
+void* thread_handler(void* thread_param){
+
+	//Package storage related variables
+	bool packet_comp = false;
+	int i;
+	int recv_ret = 0;
+	int m_ret = 0;
+
+	//get the parameter of the thread
+	thread_params * params = (thread_params *) thread_param;
+
+	/*Packet reception, detection and storage logic*/
+	while(packet_comp == false){
+
+		//printf("Receiving data from descriptor:%d.\n",sfd);
+
+		recv_ret = recv(params->cl_accept_fd, buff, BUFF_SIZE ,0); //**!check the flag
+		if(recv_ret < 0){
+			printf("Error: Receive failed\n");
+			printf("recv error: %s\n",strerror(errno));
+			syslog(LOG_ERR,"Error: Receive failed");
+			exit(1);
+		}else if(recv_ret == 0){
+			break;
+		}
+
+		/*Detect '\n' or ASCII value 
+			10 in the packet.
+		*/
+		for(i = 0;i < BUFF_SIZE;i++){
+
+			if(buff[i] == 10){
+				packet_comp = true;
+				i++;
+				break;
+			}
+
+		}
+		packet_size += i;
+
+		/*reallocate to a larger buffer now as static buffer can
+			only accomodate upto fixed size*/
+		op_buffer = (char *) realloc(op_buffer,(packet_size+1));
+		if(op_buffer == NULL){
+			printf("Realloc failed\n");
+			exit(1);
+		}
+
+		strncat(op_buffer,buff,i);
+
+		memset(buff,0,BUFF_SIZE);
+	}
+
+	/*Write the data received from client to the 
+	file first & open in append mode*/
+	int fd = open(file_path,O_APPEND | O_WRONLY);
+	if(fd == -1){
+		printf("File open error for appending\n");
+		exit(1);
+	}
+
+	m_ret = pthread_mutex_lock(params->mutex);
+	if(m_ret){
+		printf("Mutex lock error before write\n");
+		exit(1);
+	}
+
+	int nr = write(fd,op_buffer,strlen(op_buffer));
+	if(nr == -1){
+		printf("Error: File could not be written!\n");
+		syslog(LOG_ERR,"Error: File could not be written!");
+		exit(1);
+	}else if(nr != strlen(op_buffer)){
+		printf("Error: File partially written!\n");
+		syslog(LOG_ERR,"Error: File partially written!");
+		exit(1);
+	}
+
+	m_ret = pthread_mutex_unlock(params->mutex);
+	if(m_ret){
+		printf("Mutex unlock error after write\n");
+		exit(1);
+	}
+
+	close(fd);
+
+	/*Below is the logic for reading the data from the
+		input file byte by byte and sending to client.
+	*/
+	memset(buff,0,BUFF_SIZE);
+
+	fd = open(file_path,O_RDONLY);
+	if(fd == -1){
+		printf("File open error for reading\n");
+		exit(1);
+	}
+
+	m_ret = pthread_mutex_lock(params->mutex);
+	if(m_ret){
+		printf("Mutex lock error before read/send\n");
+		exit(1);
+	}
+
+	//sending data byte-by-byte
+	for(int i=0;i<packet_size;i++){
+
+		//read the file data in a buffer
+		int rd = read(fd, &c, 1);
+		if(rd == -1){
+			printf("Reading from file failed!\n");
+			printf("file read error: %s\n",strerror(errno));
+			exit(1);
+		}
+
+		int send_ret = send(params->cl_accept_fd,&c,1,0);
+		if(send_ret == -1){
+			printf("Error: Data could not be sent\n");
+			syslog(LOG_ERR,"Error: Data could not be sent");
+			exit(1);
+		}
+	}
+
+	m_ret = pthread_mutex_unlock(params->mutex);
+	if(m_ret){
+		printf("Mutex unlock error after read/send\n");
+		exit(1);
+	}
+
+	close(fd);
+
+	//Free the allocated buffer
+	free(op_buffer);
+
+	return thread_param;
 }
 //[EOF]
