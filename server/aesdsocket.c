@@ -62,7 +62,7 @@ struct slist_data_s{
 };
 
 typedef struct slist_data_s slist_data_t;
-//pthread_mutex_t mutex_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutex_lock = PTHREAD_MUTEX_INITIALIZER;
 
 
 /***********************************************************************************************
@@ -93,64 +93,64 @@ void sighandler(int sig_no){
 }
 
 
-// //function invoked after timer expiry
-// static void timer_handler(int sig_no){
+//function invoked after timer expiry
+static void timer_handler(int sig_no){
 
-// 	/*first store the local time in a buffer*/
-// 	char time_string[200];
-// 	time_t time;
-// 	struct tm *tm_ptr;
+	/*first store the local time in a buffer*/
+	char time_string[200];
+	time_t ti;
+	struct tm *tm_ptr;
 
-// 	//time = time(NULL);
-// 	tm_ptr = localtime(&time);
-// 	if(tm_ptr == NULL){
-// 		perror("Local timer error!");
-// 		exit(EXIT_FAILURE);
-// 	}
+	ti = time(NULL);
+	tm_ptr = localtime(&ti);
+	if(tm_ptr == NULL){
+		perror("Local timer error!");
+		exit(EXIT_FAILURE);
+	}
 
-// 	if(strftime(time_string,sizeof(time_string),"timestamp: %d.%b.%y - %k:%M:%S\n",tm_ptr) == 0){
-// 		perror("strftimer returned 0!");
-// 		exit(EXIT_FAILURE);
-// 	}
+	if(strftime(time_string,sizeof(time_string),"timestamp:%d.%b.%y - %k:%M:%S\n",tm_ptr) == 0){
+		perror("strftimer returned 0!");
+		exit(EXIT_FAILURE);
+	}
 
-// 	printf("time value:%s\n",time_string);
+	printf("time value:%s\n",time_string);
 
-// 	/*Now write this time to the file*/
-// 	int fd = open(file_path,O_APPEND | O_WRONLY);
-// 	if(fd == -1){
-// 		printf("File open error for appending\n");
-// 		exit(EXIT_FAILURE);
-// 	}
+	/*Now write this time to the file*/
+	int fd = open(file_path,O_APPEND | O_WRONLY);
+	if(fd == -1){
+		printf("File open error for appending\n");
+		exit(EXIT_FAILURE);
+	}
 
-// 	int m_ret = pthread_mutex_lock(params->mutex);
-// 	if(m_ret){
-// 		printf("Mutex lock error before write\n");
-// 		exit(EXIT_FAILURE);
-// 	}
+	int m_ret = pthread_mutex_lock(&mutex_lock);
+	if(m_ret){
+		printf("Mutex lock error before write\n");
+		exit(EXIT_FAILURE);
+	}
 
-// 	int nr = write(fd,time_string,strlen(time_string));
-// 	if(nr == -1){
-// 		printf("Error: File could not be written!\n");
-// 		syslog(LOG_ERR,"Error: File could not be written!");
-// 		exit(EXIT_FAILURE);
-// 	}else if(nr != strlen(op_buffer)){
-// 		printf("Error: File partially written!\n");
-// 		syslog(LOG_ERR,"Error: File partially written!");
-// 		exit(EXIT_FAILURE);
-// 	}
+	int nr = write(fd,time_string,strlen(time_string));
+	if(nr == -1){
+		printf("Error: File could not be written!\n");
+		syslog(LOG_ERR,"Error: File could not be written!");
+		exit(EXIT_FAILURE);
+	}else if(nr != strlen(time_string)){
+		printf("Error: File partially written!\n");
+		syslog(LOG_ERR,"Error: File partially written!");
+		exit(EXIT_FAILURE);
+	}
 
-// 	m_ret = pthread_mutex_unlock(params->mutex);
-// 	if(m_ret){
-// 		printf("Mutex unlock error after write\n");
-// 		exit(EXIT_FAILURE);
-// 	}
+	m_ret = pthread_mutex_unlock(&mutex_lock);
+	if(m_ret){
+		printf("Mutex unlock error after write\n");
+		exit(EXIT_FAILURE);
+	}
 
-// 	close(fd);
+	close(fd);
 
 
-// 	exit(EXIT_SUCCESS);
+	exit(EXIT_SUCCESS);
 
-// }
+}
 /***********************************************************************************************
 * Name          : main
 * Description   : used to intialize syslog, signal and call other functions.
@@ -160,8 +160,8 @@ void sighandler(int sig_no){
 ***********************************************************************************************/
 int main(int argc, char *argv[])
 {
-	//int tm_ret = 0;
-	//int stored_errno = 0;
+	int tm_ret = 0;
+	int stored_errno = 0;
 
 	//open the log file
 	openlog("aesdsocket-a5",LOG_PID,LOG_USER);
@@ -173,28 +173,30 @@ int main(int argc, char *argv[])
 	signal(SIGINT,sighandler);
 	signal(SIGTERM,sighandler);
 	signal(SIGKILL,sighandler);
+
+	pthread_mutex_init(&mutex_lock, NULL);
 	
 	//Timer configutaion for A6-P1
 	//registering signal handler for timer
-	//signal(SIGALRM,timer_handler);
+	signal(SIGALRM,timer_handler);
 
-	// struct itimerval inter_timer;
+	struct itimerval inter_timer;
 
-	// inter_timer.it_interval.tv_sec = 10; //timer interval of 10 secs
-	// inter_timer.it_interval.tv_usec = 0;
-	// inter_timer.it_value.tv_sec = 10; //time expiration of 10 secs
-	// inter_timer.it_value.tv_usec = 0;
+	inter_timer.it_interval.tv_sec = 10; //timer interval of 10 secs
+	inter_timer.it_interval.tv_usec = 0;
+	inter_timer.it_value.tv_sec = 10; //time expiration of 10 secs
+	inter_timer.it_value.tv_usec = 0;
 
-	// //arming the timer, choosing wall clock, not storing in old_value
-	// tm_ret = setitimer(ITIMER_REAL, &inter_timer, NULL);
-	// stored_errno = errno;
-	// if(tm_ret == -1){
-	// 	printf("timer error:%s\n",strerror(stored_errno));
-	// 	syslog(LOG_DEBUG,"timer error:%s",strerror(stored_errno));
-	// }
+	//arming the timer, choosing wall clock, not storing in old_value
+	tm_ret = setitimer(ITIMER_REAL, &inter_timer, NULL);
+	stored_errno = errno;
+	if(tm_ret == -1){
+		printf("timer error:%s\n",strerror(stored_errno));
+		syslog(LOG_DEBUG,"timer error:%s",strerror(stored_errno));
+	}
 
 
-	//Check the actual value or argv here:
+	//Check the actual value of argv here:
 	if((argc > 1) && (!strcmp("-d",(char*)argv[1]))){
 	
 	//if(argc > 1){
@@ -239,10 +241,10 @@ void socket_open(void)
 	slist_data_t *datap = NULL;
 	SLIST_HEAD(slisthead, slist_data_s) head;
 	SLIST_INIT(&head);
-	pthread_mutex_t mutex_lock = PTHREAD_MUTEX_INITIALIZER;
+	//pthread_mutex_t mutex_lock = PTHREAD_MUTEX_INITIALIZER;
 
 	//initializing the lock to NULL
-	pthread_mutex_init(&mutex_lock, NULL);
+	//pthread_mutex_init(&mutex_lock, NULL);
 
 	//memset(buff,0,BUFF_SIZE);
 
@@ -515,6 +517,7 @@ void* thread_handler(void* thread_param){
 	}
 
 	close(fd);
+	close(params->cl_accept_fd);
 
 	//Free the allocated buffer
 	free(op_buffer);
