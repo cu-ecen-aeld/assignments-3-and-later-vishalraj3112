@@ -37,6 +37,7 @@ char *op_buffer = NULL;
 //defining socket file descriptor
 int sfd = 0;
 int accept_fd = 0;
+int fd = 0;
 
 //Function prototypes
 void socket_open(void);
@@ -50,6 +51,7 @@ char buff[BUFF_SIZE] = {0};
 
 //Thread parameter structure
 typedef struct{
+	bool thread_comp_flag;
 	pthread_t thread_id;
 	int cl_accept_fd;
 	pthread_mutex_t *mutex;
@@ -100,6 +102,7 @@ static void timer_handler(int sig_no){
 	char time_string[200];
 	time_t ti;
 	struct tm *tm_ptr;
+	int timer_len = 0;
 
 	ti = time(NULL);
 	tm_ptr = localtime(&ti);
@@ -108,7 +111,8 @@ static void timer_handler(int sig_no){
 		exit(EXIT_FAILURE);
 	}
 
-	if(strftime(time_string,sizeof(time_string),"timestamp:%d.%b.%y - %k:%M:%S\n",tm_ptr) == 0){
+	timer_len = strftime(time_string,sizeof(time_string),"timestamp:%d.%b.%y - %k:%M:%S\n",tm_ptr);
+	if(timer_len == 0){
 		perror("strftimer returned 0!");
 		exit(EXIT_FAILURE);
 	}
@@ -116,7 +120,8 @@ static void timer_handler(int sig_no){
 	printf("time value:%s\n",time_string);
 
 	/*Now write this time to the file*/
-	int fd = open(file_path,O_APPEND | O_WRONLY);
+	//int fd = open(file_path,O_APPEND | O_WRONLY);
+	fd = open(file_path,O_APPEND | O_WRONLY);
 	if(fd == -1){
 		printf("File open error for appending\n");
 		exit(EXIT_FAILURE);
@@ -128,16 +133,19 @@ static void timer_handler(int sig_no){
 		exit(EXIT_FAILURE);
 	}
 
-	int nr = write(fd,time_string,strlen(time_string));
+	int nr = write(fd,time_string,timer_len);
 	if(nr == -1){
 		printf("Error: File could not be written!\n");
 		syslog(LOG_ERR,"Error: File could not be written!");
 		exit(EXIT_FAILURE);
-	}else if(nr != strlen(time_string)){
+	}else if(nr != timer_len){
 		printf("Error: File partially written!\n");
 		syslog(LOG_ERR,"Error: File partially written!");
 		exit(EXIT_FAILURE);
 	}
+	//update the global packet size variable, as this is used for reading and sending data
+	//to client
+	packet_size += timer_len;
 
 	m_ret = pthread_mutex_unlock(&mutex_lock);
 	if(m_ret){
@@ -148,7 +156,7 @@ static void timer_handler(int sig_no){
 	close(fd);
 
 
-	exit(EXIT_SUCCESS);
+	//exit(EXIT_SUCCESS);
 
 }
 /***********************************************************************************************
@@ -293,7 +301,8 @@ void socket_open(void)
 	// char c = 0;
 
 	//Create file
-	int fd = creat(file_path, 0644);
+	//int fd = creat(file_path, 0644);
+	fd = creat(file_path, 0644);
 	if(fd == -1){
 		printf("Error: File could not be created!\n");
 		syslog(LOG_ERR,"Error: File could not be created!");
@@ -306,16 +315,16 @@ void socket_open(void)
 	//free after use
 	freeaddrinfo(results);
 
-	while(1){
+	//while(1){
 
 		//make the buffer required for client input storage
-		op_buffer = (char *) malloc(sizeof(char)*BUFF_SIZE);
-		if(op_buffer == NULL){
-			printf("Malloc failed!\n");
-			exit(1);
-		}
+		// op_buffer = (char *) malloc(sizeof(char)*BUFF_SIZE);
+		// if(op_buffer == NULL){
+		// 	printf("Malloc failed!\n");
+		// 	exit(1);
+		// }
 
-		memset(op_buffer,0,BUFF_SIZE);
+		// memset(op_buffer,0,BUFF_SIZE);
 
 		//4. Listen on the socket
 		printf("Listening on socket.\n");
@@ -329,6 +338,8 @@ void socket_open(void)
 
 		//5. accept the socket
 		client_addr_size = sizeof(struct sockaddr);
+	
+	while(1){
 
 		printf("Accepting connection.\n");
 		accept_fd = accept(sfd,(struct sockaddr *)&client_addr, &client_addr_size);
@@ -357,22 +368,24 @@ void socket_open(void)
 
 		//Inserting thread parameters now
 		datap->thread_param.cl_accept_fd = accept_fd;
+		datap->thread_param.thread_comp_flag = false;
 		datap->thread_param.mutex = &mutex_lock;
 
 		pthread_create(&(datap->thread_param.thread_id), 			//the thread id to be created
 							NULL,			//the thread attribute to be passed
 							thread_handler,				//the thread handler to be executed
-							(void *) &datap->thread_param//the thread parameter to be passed
+							&datap->thread_param//the thread parameter to be passed
 							);
 
 		printf("All thread created now waiting to exit\n");
 
 		SLIST_FOREACH(datap,&head,entries){
-			
-			pthread_join(datap->thread_param.thread_id,NULL);
-			datap = SLIST_FIRST(&head);
-			SLIST_REMOVE_HEAD(&head, entries);
-			free(datap);
+			//if(datap->thread_param.thread_comp_flag == true){
+				pthread_join(datap->thread_param.thread_id,NULL);
+				datap = SLIST_FIRST(&head);
+				SLIST_REMOVE_HEAD(&head, entries);
+				free(datap);
+			//}
 		}
 		
 		printf("All thread exited!\n");
@@ -398,6 +411,15 @@ void* thread_handler(void* thread_param){
 
 	//get the parameter of the thread
 	thread_params * params = (thread_params *) thread_param;
+
+	//For test
+	op_buffer = (char *) malloc(sizeof(char)*BUFF_SIZE);
+	if(op_buffer == NULL){
+		printf("Malloc failed!\n");
+		exit(1);
+	}
+	memset(op_buffer,0,BUFF_SIZE);
+	//For test
 
 	/*Packet reception, detection and storage logic*/
 	while(packet_comp == false){
@@ -443,7 +465,8 @@ void* thread_handler(void* thread_param){
 
 	/*Write the data received from client to the 
 	file first & open in append mode*/
-	int fd = open(file_path,O_APPEND | O_WRONLY);
+	//int fd = open(file_path,O_APPEND | O_WRONLY);
+	fd = open(file_path,O_APPEND | O_WRONLY);
 	if(fd == -1){
 		printf("File open error for appending\n");
 		exit(1);
@@ -516,12 +539,14 @@ void* thread_handler(void* thread_param){
 		exit(1);
 	}
 
+	params->thread_comp_flag = true;
+
 	close(fd);
 	close(params->cl_accept_fd);
 
 	//Free the allocated buffer
 	free(op_buffer);
 
-	return thread_param;
+	return params;
 }
 //[EOF]
