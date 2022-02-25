@@ -47,7 +47,6 @@ void temp_function(void);
 //Packet parse variables
 int packet_size = 0;
 char c = 0;
-//char buff[BUFF_SIZE] = {0};
 
 //Thread parameter structure
 typedef struct{
@@ -65,7 +64,7 @@ struct slist_data_s{
 
 typedef struct slist_data_s slist_data_t;
 pthread_mutex_t mutex_lock = PTHREAD_MUTEX_INITIALIZER;
-
+slist_data_t *datap = NULL;
 
 /***********************************************************************************************
 * Name          : sighandler
@@ -94,8 +93,12 @@ void sighandler(int sig_no){
 	exit(EXIT_SUCCESS);
 }
 
-
-//function invoked after timer expiry
+/***********************************************************************************************
+* Name          : timer_handler
+* Description   : used to catch SIGALRM after timer expiry.
+* Parameters    : sig_no - the signal received to be handled.
+* RETURN        : None
+***********************************************************************************************/
 static void timer_handler(int sig_no){
 
 	/*first store the local time in a buffer*/
@@ -143,8 +146,8 @@ static void timer_handler(int sig_no){
 		syslog(LOG_ERR,"Error: File partially written!");
 		exit(EXIT_FAILURE);
 	}
-	//update the global packet size variable, as this is used for reading and sending data
-	//to client
+	/*update the global packet size variable, as this is used for reading and sending data
+	to client*/
 	packet_size += timer_len;
 
 	m_ret = pthread_mutex_unlock(&mutex_lock);
@@ -154,9 +157,6 @@ static void timer_handler(int sig_no){
 	}
 
 	close(fd);
-
-
-	//exit(EXIT_SUCCESS);
 
 }
 /***********************************************************************************************
@@ -168,8 +168,6 @@ static void timer_handler(int sig_no){
 ***********************************************************************************************/
 int main(int argc, char *argv[])
 {
-	//int tm_ret = 0;
-	//int stored_errno = 0;
 
 	//open the log file
 	openlog("aesdsocket-a5",LOG_PID,LOG_USER);
@@ -187,22 +185,6 @@ int main(int argc, char *argv[])
 	//Timer configutaion for A6-P1
 	//registering signal handler for timer
 	signal(SIGALRM,timer_handler);
-
-	// struct itimerval inter_timer;
-
-	// inter_timer.it_interval.tv_sec = 10; //timer interval of 10 secs
-	// inter_timer.it_interval.tv_usec = 0;
-	// inter_timer.it_value.tv_sec = 10; //time expiration of 10 secs
-	// inter_timer.it_value.tv_usec = 0;
-
-	// //arming the timer, choosing wall clock, not storing in old_value
-	// tm_ret = setitimer(ITIMER_REAL, &inter_timer, NULL);
-	// stored_errno = errno;
-	// if(tm_ret == -1){
-	// 	printf("timer error:%s\n",strerror(stored_errno));
-	// 	syslog(LOG_DEBUG,"timer error:%s",strerror(stored_errno));
-	// }
-
 
 	//Check the actual value of argv here:
 	if((argc > 1) && (!strcmp("-d",(char*)argv[1]))){
@@ -227,7 +209,7 @@ int main(int argc, char *argv[])
 
 	return 0;
 }
-slist_data_t *datap = NULL;
+
 /***********************************************************************************************
 * Name          : socket_open
 * Description   : perform all the server socket configuration related steps, read packets from 
@@ -246,15 +228,8 @@ void socket_open(void)
 	char ipv_4[INET_ADDRSTRLEN];
 	
 	//new variables for A6-P1
-	//slist_data_t *datap = NULL;
 	SLIST_HEAD(slisthead, slist_data_s) head;
 	SLIST_INIT(&head);
-	//pthread_mutex_t mutex_lock = PTHREAD_MUTEX_INITIALIZER;
-
-	//initializing the lock to NULL
-	//pthread_mutex_init(&mutex_lock, NULL);
-
-	//memset(buff,0,BUFF_SIZE);
 
 	//1. Set the sockaddr using getaddrinfo
 	
@@ -304,12 +279,7 @@ void socket_open(void)
 		exit(1);
 	}
 
-	// //variables required for packet detection
-	// int packet_size = 0;
-	// char c = 0;
-
 	//Create file
-	//int fd = creat(file_path, 0644);
 	fd = creat(file_path, 0644);
 	if(fd == -1){
 		printf("Error: File could not be created!\n");
@@ -323,7 +293,7 @@ void socket_open(void)
 	//free after use
 	freeaddrinfo(results);
 
-	//Test
+	/*Timer handler part*/
 	struct itimerval inter_timer;
 
 	inter_timer.it_interval.tv_sec = 10; //timer interval of 10 secs
@@ -333,23 +303,12 @@ void socket_open(void)
 
 	//arming the timer, choosing wall clock, not storing in old_value
 	int tm_ret = setitimer(ITIMER_REAL, &inter_timer, NULL);
-	//stored_errno = errno;
 	if(tm_ret == -1){
 		printf("timer error:%s\n",strerror(errno));
 		syslog(LOG_DEBUG,"timer error:%s",strerror(errno));
 	}
-	//Test
 
 	while(1){
-
-		//make the buffer required for client input storage
-		// op_buffer = (char *) malloc(sizeof(char)*BUFF_SIZE);
-		// if(op_buffer == NULL){
-		// 	printf("Malloc failed!\n");
-		// 	exit(1);
-		// }
-
-		// memset(op_buffer,0,BUFF_SIZE);
 
 		//4. Listen on the socket
 		printf("Listening on socket.\n");
@@ -360,11 +319,6 @@ void socket_open(void)
 			freeaddrinfo(results);
 			exit(1);
 		}
-
-	
-	// //Test
-	// while(1){
-	// //Test
 
 		//5. accept the socket
 		client_addr_size = sizeof(struct sockaddr);
@@ -407,6 +361,7 @@ void socket_open(void)
 
 		printf("All thread created now waiting to exit\n");
 
+
 		SLIST_FOREACH(datap,&head,entries){
 			//if(datap->thread_param.thread_comp_flag == true){
 				pthread_join(datap->thread_param.thread_id,NULL);
@@ -415,6 +370,13 @@ void socket_open(void)
 				free(datap);
 			//}
 		}
+		/*The above code follow the below logic:
+			while(head!=NULL){
+				data = head;
+				head = head->next;
+				free(data);
+			}
+		*/
 		
 		printf("All thread exited!\n");
 
@@ -429,6 +391,12 @@ void socket_open(void)
 
 }
 
+/***********************************************************************************************
+* Name          : thread_handler
+* Description   : performs the thread specific client data read, write to file and send steps. 
+* Parameters    : thread parameter
+* RETURN        : thread parameter
+***********************************************************************************************/
 void* thread_handler(void* thread_param){
 
 	//Package storage related variables
@@ -436,10 +404,7 @@ void* thread_handler(void* thread_param){
 	int i;
 	int recv_ret = 0;
 	int m_ret = 0;
-	//int fd = 0;
-	//Test
 	char buff[BUFF_SIZE] = {0};
-	//Test
 	char *op_buffer = NULL;
 
 	//get the parameter of the thread
@@ -506,18 +471,11 @@ void* thread_handler(void* thread_param){
 
 	/*Write the data received from client to the 
 	file first & open in append mode*/
-	//int fd = open(file_path,O_APPEND | O_WRONLY);
 	int fd = open(file_path,O_APPEND | O_WRONLY);
 	if(fd == -1){
 		printf("File open error for appending\n");
 		exit(1);
 	}
-
-	// m_ret = pthread_mutex_lock(params->mutex);
-	// if(m_ret){
-	// 	printf("Mutex lock error before write\n");
-	// 	exit(1);
-	// }
 
 	int nr = write(fd,op_buffer,strlen(op_buffer));
 	if(nr == -1){
@@ -530,12 +488,6 @@ void* thread_handler(void* thread_param){
 		exit(1);
 	}
 
-	// m_ret = pthread_mutex_unlock(params->mutex);
-	// if(m_ret){
-	// 	printf("Mutex unlock error after write\n");
-	// 	exit(1);
-	// }
-
 	close(fd);
 
 	/*Below is the logic for reading the data from the
@@ -543,25 +495,11 @@ void* thread_handler(void* thread_param){
 	*/
 	memset(buff,0,BUFF_SIZE);
 
-	//Test
-	// m_ret = pthread_mutex_lock(params->mutex);
-	// if(m_ret){
-	// 	printf("Mutex lock error before read/send\n");
-	// 	exit(1);
-	// }
-	//Test
-
 	fd = open(file_path,O_RDONLY);
 	if(fd == -1){
 		printf("File open error for reading\n");
 		exit(1);
 	}
-
-	// m_ret = pthread_mutex_lock(params->mutex);
-	// if(m_ret){
-	// 	printf("Mutex lock error before read/send\n");
-	// 	exit(1);
-	// }
 
 	//sending data byte-by-byte
 	for(int i=0;i<packet_size;i++){
@@ -584,9 +522,7 @@ void* thread_handler(void* thread_param){
 		}
 	}
 	
-	//Test
 	close(fd);
-	//Test
 
 	m_ret = pthread_mutex_unlock(params->mutex);
 	if(m_ret){
@@ -596,7 +532,6 @@ void* thread_handler(void* thread_param){
 
 	params->thread_comp_flag = true;
 
-	//close(fd);
 	close(params->cl_accept_fd);
 
 	//Free the allocated buffer
@@ -604,4 +539,4 @@ void* thread_handler(void* thread_param){
 
 	return params;
 }
-// [EOF]
+//[EOF]
