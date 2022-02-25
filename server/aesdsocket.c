@@ -361,12 +361,13 @@ void socket_open(void)
 			exit(1);
 		}
 
+	
+	// //Test
+	// while(1){
+	// //Test
+
 		//5. accept the socket
 		client_addr_size = sizeof(struct sockaddr);
-	
-	//Test
-	//while(1){
-	//Test
 	
 		printf("Accepting connection.\n");
 		accept_fd = accept(sfd,(struct sockaddr *)&client_addr, &client_addr_size);
@@ -603,4 +604,4 @@ void* thread_handler(void* thread_param){
 
 	return params;
 }
-//[EOF]
+// [EOF]
