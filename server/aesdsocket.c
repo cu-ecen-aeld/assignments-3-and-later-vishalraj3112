@@ -363,12 +363,13 @@ void socket_open(void)
 
 
 		SLIST_FOREACH(datap,&head,entries){
-			//if(datap->thread_param.thread_comp_flag == true){
-				pthread_join(datap->thread_param.thread_id,NULL);
+			pthread_join(datap->thread_param.thread_id,NULL);
+			if(datap->thread_param.thread_comp_flag == true){
+				// pthread_join(datap->thread_param.thread_id,NULL);
 				datap = SLIST_FIRST(&head);
 				SLIST_REMOVE_HEAD(&head, entries);
 				free(datap);
-			//}
+			}
 		}
 		/*The above code follow the below logic:
 			while(head!=NULL){
@@ -536,6 +537,7 @@ void* thread_handler(void* thread_param){
 
 	//Free the allocated buffer
 	free(op_buffer);
+
 
 	return params;
 }
