@@ -1,10 +1,10 @@
 /***********************************************************************************************************************
 * File Name    : aesdsocket.c
-* Project      : AESD Assignment 5
+* Project      : AESD Assignment 6
 * Version      : 1.0
-* Description  : Contains all the function implementation code for socket server application.
+* Description  : Contains all the function implementation code for socket server application with multithread.
 * Author       : Vishal Raj
-* Creation Date: 2.18.22
+* Creation Date: 2.26.22
 * References   : https://lloydrochester.com/post/c/unix-daemon-example/, Linux Man pages,
 *                https://www.qnx.com/developers/docs/6.5.0SP1.update/com.qnx.doc.neutrino_lib_ref/i/inet_ntop.html,
 *                https://www.binarytides.com/socket-programming-c-linux-tutorial/.
@@ -32,7 +32,6 @@
 
 char *port = "9000";
 char *file_path = "/var/tmp/aesdsocketdata";
-//char *op_buffer = NULL;
 
 //defining socket file descriptor
 int sfd = 0;
@@ -65,6 +64,7 @@ struct slist_data_s{
 typedef struct slist_data_s slist_data_t;
 pthread_mutex_t mutex_lock = PTHREAD_MUTEX_INITIALIZER;
 slist_data_t *datap = NULL;
+SLIST_HEAD(slisthead, slist_data_s) head;
 
 /***********************************************************************************************
 * Name          : sighandler
@@ -82,6 +82,22 @@ void sighandler(int sig_no){
 		case SIGKILL:
 			printf("SIGINT/SIGTEM/SIGKILL detected!\n");
 			syslog(LOG_DEBUG,"Caught signal, exiting");
+			
+			/*A6 thread part graceful exit - free all the 
+			thread parameters*/
+			while(SLIST_FIRST(&head) != NULL){
+				SLIST_FOREACH(datap,&head,entries){
+					close(datap->thread_param.cl_accept_fd);
+					pthread_join(datap->thread_param.thread_id,NULL);
+					SLIST_REMOVE(&head, datap, slist_data_s, entries);
+					free(datap);
+					break;
+				}
+			}
+
+			//Free mutex
+			pthread_mutex_destroy(&mutex_lock);
+			
 			unlink(file_path); //delete the file
 			//free(op_buffer);
 			close(accept_fd);
@@ -224,11 +240,9 @@ void socket_open(void)
 	struct addrinfo *results;
 	struct sockaddr client_addr;
 	socklen_t client_addr_size;
-	//char buff[BUFF_SIZE] = {0};
 	char ipv_4[INET_ADDRSTRLEN];
 	
 	//new variables for A6-P1
-	SLIST_HEAD(slisthead, slist_data_s) head;
 	SLIST_INIT(&head);
 
 	//1. Set the sockaddr using getaddrinfo
@@ -361,14 +375,13 @@ void socket_open(void)
 
 		printf("All thread created now waiting to exit\n");
 
-
 		SLIST_FOREACH(datap,&head,entries){
-			pthread_join(datap->thread_param.thread_id,NULL);
+			//pthread_join(datap->thread_param.thread_id,NULL);
 			if(datap->thread_param.thread_comp_flag == true){
-				// pthread_join(datap->thread_param.thread_id,NULL);
-				datap = SLIST_FIRST(&head);
-				SLIST_REMOVE_HEAD(&head, entries);
+				pthread_join(datap->thread_param.thread_id,NULL);
+				SLIST_REMOVE(&head, datap, slist_data_s, entries);
 				free(datap);
+				break;
 			}
 		}
 		/*The above code follow the below logic:
