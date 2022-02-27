@@ -66,6 +66,9 @@ pthread_mutex_t mutex_lock = PTHREAD_MUTEX_INITIALIZER;
 slist_data_t *datap = NULL;
 SLIST_HEAD(slisthead, slist_data_s) head;
 
+//Function prototypes
+static void graceful_exit(void);
+
 /***********************************************************************************************
 * Name          : sighandler
 * Description   : used to catch the particular signal and perform graceful shutdown.
@@ -82,31 +85,43 @@ void sighandler(int sig_no){
 		case SIGKILL:
 			printf("SIGINT/SIGTEM/SIGKILL detected!\n");
 			syslog(LOG_DEBUG,"Caught signal, exiting");
-			
-			/*A6 thread part graceful exit - free all the 
-			thread parameters*/
-			while(SLIST_FIRST(&head) != NULL){
-				SLIST_FOREACH(datap,&head,entries){
-					close(datap->thread_param.cl_accept_fd);
-					pthread_join(datap->thread_param.thread_id,NULL);
-					SLIST_REMOVE(&head, datap, slist_data_s, entries);
-					free(datap);
-					break;
-				}
-			}
-
-			//Free mutex
-			pthread_mutex_destroy(&mutex_lock);
-			
-			unlink(file_path); //delete the file
-			//free(op_buffer);
-			close(accept_fd);
-			close(sfd);
 			break;
 
 	}
 
+	graceful_exit();
+
 	exit(EXIT_SUCCESS);
+}
+
+/***********************************************************************************************
+* Name          : graceful_exit
+* Description   : used to perform all the clean-up shutdown functions before process exit.
+* Parameters    : None
+* RETURN        : None
+***********************************************************************************************/
+static void graceful_exit(void){
+	
+	/*A6 thread part graceful exit - free all the 
+	thread parameters*/
+	while(SLIST_FIRST(&head) != NULL){
+		SLIST_FOREACH(datap,&head,entries){
+			close(datap->thread_param.cl_accept_fd);
+			pthread_join(datap->thread_param.thread_id,NULL);
+			SLIST_REMOVE(&head, datap, slist_data_s, entries);
+			free(datap);
+			break;
+		}
+	}
+
+	//Free mutex
+	pthread_mutex_destroy(&mutex_lock);
+	
+	unlink(file_path); //delete the file
+	//free(op_buffer);
+	close(accept_fd);
+	close(sfd);
+
 }
 
 /***********************************************************************************************
