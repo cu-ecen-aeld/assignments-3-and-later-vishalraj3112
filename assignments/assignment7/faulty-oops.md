@@ -1,4 +1,4 @@
-#Kernal oops analysis of faulty module
+# Kernal oops analysis of faulty module
 
 ## Output trace of oops for faulty write in qemu
 
@@ -47,13 +47,13 @@ Call trace:
  el0_sync_handler+0xb0/0xc0
  el0_sync+0x174/0x180
 Code: d2800001 d2800000 d503233f d50323bf (b900003f) 
----[ end trace 386727d5243ab2cd ]--- 
-*
+---[ end trace 386727d5243ab2cd ]---*
+
 ## Analysis and explanation of oops message 
 
 The oops messages are generated null-pointer derefrences or by use of an incorrect pointer value.
 In the above case, the oops message resulted due to a null-pointer dereference as shown in the first line of the message-
-'*Unable to handle kernal pointer dereference.*'
+*Unable to handle kernal pointer dereference.*
 
 All address in Linux are virtual addresses which are mapped to physical address through page tables. When an invalid 
 pointer dereference occurs, the pagin mechanism fails to map the pointer to a physical address and a page fault signal
