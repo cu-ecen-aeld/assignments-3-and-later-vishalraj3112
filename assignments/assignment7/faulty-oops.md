@@ -3,7 +3,7 @@
 ## Output trace of oops for faulty write in qemu
 
 
-*Unable to handle kernel NULL pointer dereference at virtual address 0000000000000000
+`Unable to handle kernel NULL pointer dereference at virtual address 0000000000000000
 Mem abort info:
   ESR = 0x96000046
   EC = 0x25: DABT (current EL), IL = 32 bits
@@ -47,7 +47,7 @@ Call trace:
  el0_sync_handler+0xb0/0xc0
  el0_sync+0x174/0x180
 Code: d2800001 d2800000 d503233f d50323bf (b900003f) 
----[ end trace 386727d5243ab2cd ]---*
+---[ end trace 386727d5243ab2cd ]---`
 
 ## Analysis and explanation of oops message 
 
