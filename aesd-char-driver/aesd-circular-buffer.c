@@ -89,7 +89,7 @@ const char* aesd_circular_buffer_add_entry(struct aesd_circular_buffer *buffer, 
         buffer->in_offs++;
         buffer->out_offs++;
 
-        return;
+        return ret_ptr;
    }
     
     //add string and size data to the buffer
@@ -107,6 +107,8 @@ const char* aesd_circular_buffer_add_entry(struct aesd_circular_buffer *buffer, 
         buffer->full = true;
     else
         buffer->full = false;
+
+    return (void*)NULL;
 }
 
 /**
