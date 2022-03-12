@@ -48,10 +48,56 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
                 loff_t *f_pos)
 {
 	ssize_t retval = 0;
+	//entry and offset for circular buffer
+	aesd_buffer_entry *read_entry = NULL;
+	size_t read_offset = 0;
+	size_t unread_bytes = 0;
+
 	PDEBUG("read %zu bytes with offset %lld",count,*f_pos);
 	/**
 	 * TODO: handle read
 	 */
+
+	//get the skull device from file structure
+	struct aesd_device *dev = filep->private_data;
+
+	//put error checks here, if count is zero, all other parameters are not null
+	if(filp == NULL || buf == NULL || f_pos == NULL){
+		return -EFAULT; //bad address
+	}
+	
+	//lock on mutex here, preferrable interruptable, check for error
+	if(mutex_lock_interruptible(&dev->lock)){
+		PDEBUG(KERN_ERR, "could not acquire mutex lock");
+		return -ERESTARTSYS; //check this
+	}
+
+	//find the read entry, and offset for given f_pos
+	read_entry = aesd_circular_buffer_find_entry_offset_for_fpos(&(dev->cir_buff), *f_pos, &read_offset); 
+	if(read_entry == NULL){
+		goto error_exit;
+	}else{
+
+		/*check if count is greater that current max read size, then limit
+		  max_read_size = entry_size - read_offset 
+		*/
+		if(count > (read_entry->size - read_offset))
+			count = read_entry->size - read_offset;
+		
+	}
+
+	//now read using copy_to_user
+	unread_bytes = copy_to_user(buf, (read_entry->buffptr + read_offset), count);
+	//return whatever is copied and update fpos accordingly
+	retval = count - unread_bytes;
+	*f_pos += retval;
+
+error_exit:
+	if(mutex_unlock(&(dev->lock))){
+		PDEBUG(KERN_ERR, "could not release mutex lock");
+		return -ERESTARTSYS; //check this
+	}
+
 	return retval;
 }
 
@@ -63,6 +109,8 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
 	/**
 	 * TODO: handle write
 	 */
+	
+
 	return retval;
 }
 struct file_operations aesd_fops = {
