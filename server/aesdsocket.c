@@ -31,7 +31,14 @@
 #define TOTAL_THREADS 10
 
 char *port = "9000";
-char *file_path = "/var/tmp/aesdsocketdata";
+
+//Modifications for Assignment 8.
+#define USE_AESD_CHAR_DEVICE	1
+#ifdef USE_AESD_CHAR_DEVICE
+	char *file_path = "/dev/aesdchar";
+#else
+	char *file_path = "/var/tmp/aesdsocketdata";
+#endif
 
 //defining socket file descriptor
 int sfd = 0;
