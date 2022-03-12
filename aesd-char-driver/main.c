@@ -16,6 +16,7 @@
 #include <linux/printk.h>
 #include <linux/types.h>
 #include <linux/cdev.h>
+#include <linux/slab.h>
 #include <linux/fs.h> // file_operations
 #include "aesdchar.h"
 int aesd_major =   0; // use dynamic major
@@ -28,15 +29,16 @@ struct aesd_dev aesd_device;
 
 int aesd_open(struct inode *inode, struct file *filp)
 {
+	struct aesd_dev *dev;
+
 	PDEBUG("open");
 	/**
 	 * TODO: handle open
 	 */
-	struct aesd_device *dev = NULL;
 
 	/*store cdev in inode.ic_dev, and store in private data 
 	  for future reference*/
-	dev = container_of(inode->i_cdev, struct aesd_device, cdev);
+	dev = container_of(inode->i_cdev, struct aesd_dev, cdev);
 	filp->private_data = dev;
 
 	return 0;
@@ -55,8 +57,10 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
                 loff_t *f_pos)
 {
 	ssize_t retval = 0;
+	struct aesd_dev *dev;
+
 	//entry and offset for circular buffer
-	aesd_buffer_entry *read_entry = NULL;
+	struct aesd_buffer_entry *read_entry = NULL;
 	ssize_t read_offset = 0;
 	ssize_t unread_bytes = 0;
 
@@ -66,7 +70,7 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
 	 */
 
 	//get the skull device from file structure
-	struct aesd_device *dev = (struct aesd_device*) filep->private_data;
+	dev = (struct aesd_dev*) filp->private_data;
 
 	//put error checks here, if count is zero, all other parameters are not null
 	if(filp == NULL || buf == NULL || f_pos == NULL){
@@ -75,7 +79,7 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
 	
 	//lock on mutex here, preferrable interruptable, check for error
 	if(mutex_lock_interruptible(&dev->lock)){
-		PDEBUG(KERN_ERR, "could not acquire mutex lock");
+		PDEBUG(KERN_ERR "could not acquire mutex lock");
 		return -ERESTARTSYS; //check this
 	}
 
@@ -100,17 +104,20 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
 	*f_pos += retval;
 
 error_exit:
-	if(mutex_unlock(&(dev->lock))){
-		PDEBUG(KERN_ERR, "could not release mutex lock");
-		return -ERESTARTSYS; //check this
-	}
+	//if(mutex_unlock(&(dev->lock))){
+	mutex_unlock(&(dev->lock));
+	// 	PDEBUG(KERN_ERR "could not release mutex lock");
+	// 	return -ERESTARTSYS; //check this
+	// }
 
 	return retval;
 }
 
 ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
                 loff_t *f_pos)
-{
+{	
+	struct aesd_dev *dev;
+	const char *new_entry = NULL;
 	ssize_t retval = -ENOMEM;
 	ssize_t unwritten_bytes = 0;
 	PDEBUG("write %zu bytes with offset %lld",count,*f_pos);
@@ -125,11 +132,11 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
 		return -EFAULT;
 
 	//cast the aesd_device from private data
-	struct aesd_device *dev = (struct aesd_device*) filep->private_data;
+	dev = (struct aesd_dev*) filp->private_data;
 
 	//lock the mutex
-	if(mutex_lock_interruptible(&dev->lock)){
-		PDEBUG(KERN_ERR, "could not acquire mutex lock");
+	if(mutex_lock_interruptible(&(dev->lock))){
+		PDEBUG(KERN_ERR "could not acquire mutex lock");
 		return -ERESTARTSYS;
 	}
 	
@@ -163,7 +170,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
 	//Check for \n in command, if found add the entry in circular buffer
 	if(memchr(dev->buff_entry.buffptr, '\n', dev->buff_entry.size)){
 
-		char *new_entry = aesd_circular_buffer_add_entry(&dev->cir_buff, &dev->buff_entry); 
+		new_entry = aesd_circular_buffer_add_entry(&dev->cir_buff, &dev->buff_entry); 
 		if(new_entry){
 			kfree(new_entry);// !doubt about this
 		}
@@ -236,6 +243,10 @@ int aesd_init_module(void)
 
 void aesd_cleanup_module(void)
 {
+	//free circular buffer entries
+	struct aesd_buffer_entry *entry = NULL;
+	uint8_t index = 0; 
+
 	dev_t devno = MKDEV(aesd_major, aesd_minor);
 
 	cdev_del(&aesd_device.cdev);
@@ -246,9 +257,6 @@ void aesd_cleanup_module(void)
 	//free the buff_entry buffpte
 	kfree(aesd_device.buff_entry.buffptr);
 
-	//free circular buffer entries
-	struct aesd_buffer_entry *entry = NULL;
-	uint8_t index = 0; 
 	
 	AESD_CIRCULAR_BUFFER_FOREACH(entry, &aesd_device.cir_buff, index){
 		if(entry->buffptr != NULL){
