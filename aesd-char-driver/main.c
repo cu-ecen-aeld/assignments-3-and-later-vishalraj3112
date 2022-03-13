@@ -31,7 +31,7 @@ int aesd_open(struct inode *inode, struct file *filp)
 {
 	struct aesd_dev *dev;
 
-	PDEBUG("open");
+	//PDEBUG("open");
 	/**
 	 * TODO: handle open
 	 */
@@ -46,7 +46,7 @@ int aesd_open(struct inode *inode, struct file *filp)
 
 int aesd_release(struct inode *inode, struct file *filp)
 {
-	PDEBUG("release");
+	//PDEBUG("release");
 	/**
 	 * TODO: handle release
 	 */
@@ -64,7 +64,8 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
 	ssize_t read_offset = 0;
 	ssize_t unread_bytes = 0;
 
-	PDEBUG("read %zu bytes with offset %lld",count,*f_pos);
+	//PDEBUG("read %zu bytes with offset %lld",count,*f_pos);
+	printk(KERN_DEBUG "read %zu bytes with offset %lld",count,*f_pos);
 	/**
 	 * TODO: handle read
 	 */
@@ -120,7 +121,8 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
 	const char *new_entry = NULL;
 	ssize_t retval = -ENOMEM;
 	ssize_t unwritten_bytes = 0;
-	PDEBUG("write %zu bytes with offset %lld",count,*f_pos);
+	//PDEBUG("write %zu bytes with offset %lld",count,*f_pos);
+	//printk(KERN_ALERT "write %zu bytes with offset %lld",count,*f_pos);;
 	/**
 	 * TODO: handle write
 	 */
@@ -172,6 +174,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
 
 		new_entry = aesd_circular_buffer_add_entry(&dev->cir_buff, &dev->buff_entry); 
 		if(new_entry){
+			//PDEBUG("trying to free:%p",new_entry);
 			kfree(new_entry);// !doubt about this
 		}
 
@@ -180,6 +183,8 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
 		dev->buff_entry.size = 0;
 
 	}
+
+	//PDEBUG("not doing k_free for now");
 
 	//handle errors
 exit_error:
