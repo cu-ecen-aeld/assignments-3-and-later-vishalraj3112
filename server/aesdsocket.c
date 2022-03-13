@@ -34,7 +34,7 @@ char *port = "9000";
 
 //Modifications for Assignment 8.
 #define USE_AESD_CHAR_DEVICE	1
-#ifdef USE_AESD_CHAR_DEVICE
+#if (USE_AESD_CHAR_DEVICE == 1)
 	char *file_path = "/dev/aesdchar";
 #else
 	char *file_path = "/var/tmp/aesdsocketdata";
@@ -137,6 +137,7 @@ static void graceful_exit(void){
 * Parameters    : sig_no - the signal received to be handled.
 * RETURN        : None
 ***********************************************************************************************/
+#if (USE_AESD_CHAR_DEVICE == 0)
 static void timer_handler(int sig_no){
 
 	/*first store the local time in a buffer*/
@@ -197,6 +198,7 @@ static void timer_handler(int sig_no){
 	close(fd);
 
 }
+#endif
 /***********************************************************************************************
 * Name          : main
 * Description   : used to intialize syslog, signal and call other functions.
@@ -222,7 +224,9 @@ int main(int argc, char *argv[])
 	
 	//Timer configutaion for A6-P1
 	//registering signal handler for timer
-	signal(SIGALRM,timer_handler);
+	#if (USE_AESD_CHAR_DEVICE == 0)
+		signal(SIGALRM,timer_handler);
+	#endif
 
 	//Check the actual value of argv here:
 	if((argc > 1) && (!strcmp("-d",(char*)argv[1]))){
