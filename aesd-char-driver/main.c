@@ -5,8 +5,8 @@
  * Based on the implementation of the "scull" device driver, found in
  * Linux Device Drivers example code.
  *
- * @author Dan Walkes
- * @date 2019-10-22
+ * @author Dan Walkes & Vishal Raj
+ * @date 2019-10-22 modified: 3/13/2022
  * @copyright Copyright (c) 2019
  *
  */
@@ -22,19 +22,22 @@
 int aesd_major =   0; // use dynamic major
 int aesd_minor =   0;
 
-MODULE_AUTHOR("Your Name Here"); /** TODO: fill in your name **/
+MODULE_AUTHOR("Vishal Raj");
 MODULE_LICENSE("Dual BSD/GPL");
 
 struct aesd_dev aesd_device;
 
+/**
+ * @desc the open call used to get the character device(cdev) from aesd_dev structure.
+ * @param inode the kernel inode structure.
+ * @param filp the kernel file structure passed from caller
+ * @return function exit status
+ */
 int aesd_open(struct inode *inode, struct file *filp)
 {
 	struct aesd_dev *dev;
 
-	//PDEBUG("open");
-	/**
-	 * TODO: handle open
-	 */
+	PDEBUG("open");
 
 	/*store cdev in inode.ic_dev, and store in private data 
 	  for future reference*/
@@ -44,15 +47,27 @@ int aesd_open(struct inode *inode, struct file *filp)
 	return 0;
 }
 
+/**
+ * @desc the release system call used to release andy kernel resources.
+ * @param inode the kernel inode structure.
+ * @param filp the kernel file structure passed from caller
+ * @return function exit status
+ */
 int aesd_release(struct inode *inode, struct file *filp)
 {
-	//PDEBUG("release");
-	/**
-	 * TODO: handle release
-	 */
+	PDEBUG("release");
+
 	return 0;
 }
 
+/**
+ * @desc the release system call used to release andy kernel resources.
+ * @param filp the kernel file structure passed from caller.
+ * @param buf the buffer pointer at which the read data needs to be stored.
+ * @param count the number of bytes required to be read from kernel buffer.
+ * @param f_pos the entry offset location in kernel buffer from where data will be read.
+ * @return no of bytes successfully read.
+ */
 ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
                 loff_t *f_pos)
 {
@@ -64,11 +79,8 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
 	ssize_t read_offset = 0;
 	ssize_t unread_bytes = 0;
 
-	//PDEBUG("read %zu bytes with offset %lld",count,*f_pos);
+	PDEBUG("read %zu bytes with offset %lld",count,*f_pos);
 	printk(KERN_DEBUG "read %zu bytes with offset %lld",count,*f_pos);
-	/**
-	 * TODO: handle read
-	 */
 
 	//get the skull device from file structure
 	dev = (struct aesd_dev*) filp->private_data;
@@ -100,20 +112,25 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count,
 
 	//now read using copy_to_user
 	unread_bytes = copy_to_user(buf, (read_entry->buffptr + read_offset), count);
+	
 	//return whatever is copied and update fpos accordingly
 	retval = count - unread_bytes;
 	*f_pos += retval;
 
 error_exit:
-	//if(mutex_unlock(&(dev->lock))){
 	mutex_unlock(&(dev->lock));
-	// 	PDEBUG(KERN_ERR "could not release mutex lock");
-	// 	return -ERESTARTSYS; //check this
-	// }
 
 	return retval;
 }
 
+/**
+ * @desc the release system call used to release andy kernel resources.
+ * @param filp the kernel file structure passed from caller.
+ * @param buf the buffer pointer which contains the data to be written at kernel buffer entry
+ * @param count the number of bytes required to be written to kernel buffer.
+ * @param f_pos the file postion location which will be updated after each write.
+ * @return no of bytes successfully written.
+ */
 ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
                 loff_t *f_pos)
 {	
@@ -121,11 +138,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
 	const char *new_entry = NULL;
 	ssize_t retval = -ENOMEM;
 	ssize_t unwritten_bytes = 0;
-	//PDEBUG("write %zu bytes with offset %lld",count,*f_pos);
-	//printk(KERN_ALERT "write %zu bytes with offset %lld",count,*f_pos);;
-	/**
-	 * TODO: handle write
-	 */
+	PDEBUG("write %zu bytes with offset %lld",count,*f_pos);
 	
 	//check arguement errors
 	if(count == 0)
@@ -174,7 +187,6 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
 
 		new_entry = aesd_circular_buffer_add_entry(&dev->cir_buff, &dev->buff_entry); 
 		if(new_entry){
-			//PDEBUG("trying to free:%p",new_entry);
 			kfree(new_entry);// !doubt about this
 		}
 
@@ -184,7 +196,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
 
 	}
 
-	//PDEBUG("not doing k_free for now");
+	PDEBUG("not doing k_free for now");
 
 	//handle errors
 exit_error:
@@ -201,6 +213,10 @@ struct file_operations aesd_fops = {
 	.release =  aesd_release,
 };
 
+/**
+ * @desc this function is used to initialize the device and add it.
+ * @return return value of mkdev.
+ */
 static int aesd_setup_cdev(struct aesd_dev *dev)
 {
 	int err, devno = MKDEV(aesd_major, aesd_minor);
@@ -215,8 +231,11 @@ static int aesd_setup_cdev(struct aesd_dev *dev)
 	return err;
 }
 
-
-
+/**
+ * @desc this function is used to register the device and initialize the kernel
+ * data structures.
+ * @return the return value of register and init functions.
+ */
 int aesd_init_module(void)
 {
 	dev_t dev = 0;
@@ -230,9 +249,6 @@ int aesd_init_module(void)
 	}
 	memset(&aesd_device,0,sizeof(struct aesd_dev));
 
-	/**
-	 * TODO: initialize the AESD specific portion of the device
-	 */
 	//Initialize the mutex and circular buffer
 	mutex_init(&aesd_device.lock);
 	aesd_circular_buffer_init(&aesd_device.cir_buff);
@@ -246,6 +262,10 @@ int aesd_init_module(void)
 
 }
 
+/**
+ * @desc this function is used to unregister the device and deallocated all the kernel data structures and delte the device
+ * @return none.
+ */
 void aesd_cleanup_module(void)
 {
 	//free circular buffer entries
@@ -256,20 +276,12 @@ void aesd_cleanup_module(void)
 
 	cdev_del(&aesd_device.cdev);
 
-	/**
-	 * TODO: cleanup AESD specific poritions here as necessary
-	 */
 	//free the buff_entry buffpte
 	kfree(aesd_device.buff_entry.buffptr);
 
-	
 	AESD_CIRCULAR_BUFFER_FOREACH(entry, &aesd_device.cir_buff, index){
 		if(entry->buffptr != NULL){
-			//#  ifdef __KERNEL__
 				kfree(entry->buffptr);
-			// #else
-			// 	kfree((void*)entry->buffptr);
-			// #endif
 		}
 	}
 
