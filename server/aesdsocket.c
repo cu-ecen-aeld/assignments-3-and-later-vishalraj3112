@@ -1,6 +1,6 @@
 /***********************************************************************************************************************
 * File Name    : aesdsocket.c
-* Project      : AESD Assignment 6
+* Project      : AESD Assignment 8
 * Version      : 1.0
 * Description  : Contains all the function implementation code for socket server application with multithread.
 * Author       : Vishal Raj
@@ -31,7 +31,14 @@
 #define TOTAL_THREADS 10
 
 char *port = "9000";
-char *file_path = "/var/tmp/aesdsocketdata";
+
+//Modifications for Assignment 8.
+#define USE_AESD_CHAR_DEVICE	1
+#if (USE_AESD_CHAR_DEVICE == 1)
+	char *file_path = "/dev/aesdchar";
+#else
+	char *file_path = "/var/tmp/aesdsocketdata";
+#endif
 
 //defining socket file descriptor
 int sfd = 0;
@@ -130,6 +137,7 @@ static void graceful_exit(void){
 * Parameters    : sig_no - the signal received to be handled.
 * RETURN        : None
 ***********************************************************************************************/
+#if (USE_AESD_CHAR_DEVICE == 0)
 static void timer_handler(int sig_no){
 
 	/*first store the local time in a buffer*/
@@ -190,6 +198,7 @@ static void timer_handler(int sig_no){
 	close(fd);
 
 }
+#endif
 /***********************************************************************************************
 * Name          : main
 * Description   : used to intialize syslog, signal and call other functions.
@@ -215,7 +224,9 @@ int main(int argc, char *argv[])
 	
 	//Timer configutaion for A6-P1
 	//registering signal handler for timer
-	signal(SIGALRM,timer_handler);
+	#if (USE_AESD_CHAR_DEVICE == 0)
+		signal(SIGALRM,timer_handler);
+	#endif
 
 	//Check the actual value of argv here:
 	if((argc > 1) && (!strcmp("-d",(char*)argv[1]))){
@@ -569,4 +580,4 @@ void* thread_handler(void* thread_param){
 
 	return params;
 }
-//[EOF]
+//[EOF] 

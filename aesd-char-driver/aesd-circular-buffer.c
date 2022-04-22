@@ -71,38 +71,46 @@ struct aesd_buffer_entry *aesd_circular_buffer_find_entry_offset_for_fpos(struct
 * Any necessary locking must be handled by the caller
 * Any memory referenced in @param add_entry must be allocated by and/or must have a lifetime managed by the caller.
 */
-void aesd_circular_buffer_add_entry(struct aesd_circular_buffer *buffer, const struct aesd_buffer_entry *add_entry)
+const char* aesd_circular_buffer_add_entry(struct aesd_circular_buffer *buffer, const struct aesd_buffer_entry *add_entry)
 {
-    /**
-    * TODO: implement per description 
-    */
+    /* This function has been modified for Assignment - 8*/
 
-   //On entry check if buffer is full, then overwrite and increment out_offs
-   if(buffer->full == true){
-       //add string and size data to the buffer(overwrite)
-        buffer->entry[buffer->in_offs] = *(add_entry);
-        //increment both the head and tail
+    const char* retptr = NULL;
+
+    if ( (buffer->in_offs == buffer->out_offs) && buffer->full ) 
+    {
+        // store value of buffptr before override 
+        retptr = buffer->entry[buffer->in_offs].buffptr;
+        // write to buffer and increment 
+        buffer->entry[buffer->in_offs] = *add_entry;
+
         buffer->in_offs++;
-        buffer->out_offs++;
 
-        return;
-   }
-    
-    //add string and size data to the buffer
-    buffer->entry[buffer->in_offs] = *(add_entry);
+        //Check rollover
+        if(buffer->in_offs == AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED)
+            buffer->in_offs = 0;
 
-    //increment the head
-    buffer->in_offs++;
+        buffer->out_offs = buffer->in_offs; 
+    }
+    else
+    {
+        buffer->entry[buffer->in_offs] = *add_entry;
+        buffer->in_offs++;
 
-    //If in_offs reaches end, roll back(reset in_offs)
-    if(buffer->in_offs == AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED)
+        //Check rollover
+        if(buffer->in_offs == AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED)
         buffer->in_offs = 0;
 
-    //Check if full, i.e out_offs == in_offs
-    if(buffer->in_offs == buffer->out_offs)
-        buffer->full = true;
-    else
-        buffer->full = false;
+        //Check for full
+        if(buffer->in_offs == buffer->out_offs)
+            buffer->full = true;
+        else
+            buffer->full = false;
+        
+    }
+
+    return retptr;
+
 }
 
 /**
