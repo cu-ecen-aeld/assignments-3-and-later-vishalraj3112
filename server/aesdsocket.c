@@ -1,6 +1,6 @@
 /***********************************************************************************************************************
 * File Name    : aesdsocket.c
-* Project      : AESD Assignment 6
+* Project      : AESD Assignment 8
 * Version      : 1.0
 * Description  : Contains all the function implementation code for socket server application with multithread.
 * Author       : Vishal Raj
