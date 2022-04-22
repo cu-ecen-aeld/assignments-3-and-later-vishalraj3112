@@ -1,4 +1,16 @@
+/***********************************************************************************************************************
+* File Name    : systemcalls.c
+* Project      : AESD Assignment 3 Part 1
+* Version      : 1.0
+* Description  : Contains all the function implementation code for system call application.
+* Author       : Vishal Raj
+* Creation Date: 1.26.22
+***********************************************************************************************************************/
 #include "systemcalls.h"
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/wait.h>
+#include <fcntl.h>
 
 /**
  * @param cmd the command to execute with system()
@@ -16,6 +28,14 @@ bool do_system(const char *cmd)
  *   and return a boolean true if the system() call completed with success 
  *   or false() if it returned a failure
 */
+    int ret;
+
+    ret = system(cmd);
+
+    if(ret == -1){
+        perror("system error");
+        return false;
+    }
 
     return true;
 }
@@ -46,7 +66,7 @@ bool do_exec(int count, ...)
     }
     command[count] = NULL;
     // this line is to avoid a compile warning before your implementation is complete
-    // and may be removed
+    // and may be removed 
     command[count] = command[count];
 
 /*
@@ -55,9 +75,43 @@ bool do_exec(int count, ...)
  *   and wait instead of system (see LSP page 161).
  *   Use the command[0] as the full path to the command to execute
  *   (first argument to execv), and use the remaining arguments
- *   as second argument to the execv() command.
+ *   as second argument to the  execv() command.
  *   
 */
+    int status;
+    pid_t pid;
+    int rt;
+
+    //create a child process
+    pid = fork();
+
+    //fork fail condition
+    if(pid == -1){
+        perror("fork error");
+        return false;
+    }
+    else if(pid == 0){//Child process
+        
+        rt = execv(command[0],command);
+        if(rt == -1){
+            perror("execv error");
+            exit(-1); //same as false
+        }
+
+    }else{ //Parent process
+
+        //wait for child process exit
+        if(waitpid(pid,&status,0) == -1){
+            perror("wait error");
+            return false;
+        }
+        
+        //check exit status after wait
+        if( ! (WIFEXITED(status)) || WEXITSTATUS(status)){
+            perror("wait error");
+            return false;
+        }
+    }
 
     va_end(args);
 
@@ -92,6 +146,57 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *   The rest of the behaviour is same as do_exec()
  *   
 */
+    int status;
+    pid_t pid;
+    int rt;
+
+    //Opening the file where STDOUT needs to be redirected
+    int fd = open(outputfile, O_WRONLY|O_TRUNC|O_CREAT, 0644);
+    if(fd < 0){
+        perror("open error");
+        return false;
+    }
+
+    //Create a child process
+    pid = fork();
+
+    //Fork fail condition
+    if(pid == -1){
+        perror("fork error");
+        return false;
+    }else if(pid == 0){ //Child process
+
+        if(dup2(fd,1) < 0){
+            perror("dup2 error");
+            return false;
+        }
+        close(fd);
+
+        //execute child process
+        rt = execv(command[0],command);
+        if(rt == -1){
+            perror("execv error");
+            exit(-1);
+        }
+    }
+    else{//Parent process
+
+        close(fd);
+
+        //wait for child process exit
+        if(waitpid(pid,&status,0) == -1){
+            perror("wait error");
+            return false;
+        }
+        
+        //check exit status after wait
+        if( ! (WIFEXITED(status)) || WEXITSTATUS(status)){
+            perror("wait error");
+            return false;
+        }
+
+    }
+
 
     va_end(args);
     
